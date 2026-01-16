@@ -1,17 +1,28 @@
 import { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import styled from 'styled-components';
+import { useQuery } from '@tanstack/react-query';
 import { BookOpen, LayoutDashboard, MessageSquare, User } from 'lucide-react';
+import { api } from '../services/api';
 
 interface LayoutProps {
   children: ReactNode;
+  studentId: string;
 }
 
 /**
  * ✅ IMPLEMENTADO - Layout principal de la aplicación
  */
-export function Layout({ children }: LayoutProps) {
+export function Layout({ children, studentId }: LayoutProps) {
   const location = useLocation();
+
+  const { data: student } = useQuery({
+    queryKey: ['student', studentId],
+    queryFn: async () => {
+      const dashboard = await api.getDashboard(studentId);
+      return dashboard.student;
+    },
+  });
 
   return (
     <Container>
@@ -35,8 +46,8 @@ export function Layout({ children }: LayoutProps) {
         <UserSection>
           <Avatar><User size={20} /></Avatar>
           <UserInfo>
-            <UserName>Estudiante Demo</UserName>
-            <UserEmail>demo@test.com</UserEmail>
+            <UserName>{student?.name || 'Cargando...'}</UserName>
+            <UserEmail>{student?.email || ''}</UserEmail>
           </UserInfo>
         </UserSection>
       </Sidebar>

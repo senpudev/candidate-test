@@ -9,7 +9,7 @@ const TEST_STUDENT_ID = '507f1f77bcf86cd799439011';
 
 function App() {
   return (
-    <Layout>
+    <Layout studentId={TEST_STUDENT_ID}>
       <Routes>
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Dashboard studentId={TEST_STUDENT_ID} />} />
