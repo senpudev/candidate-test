@@ -1,0 +1,220 @@
+import { Injectable, Logger } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model, Types } from 'mongoose';
+import { ChatMessage, ChatMessageDocument } from './schemas/chat-message.schema';
+import { Conversation, ConversationDocument } from './schemas/conversation.schema';
+import { AiService } from '../ai/ai.service';
+import { SendMessageDto } from './dto/send-message.dto';
+
+interface MessageHistory {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+}
+
+@Injectable()
+export class ChatService {
+  private readonly logger = new Logger(ChatService.name);
+
+  // Cache de historial de conversaciones en memoria para optimizar
+  private conversationCache: Map<string, MessageHistory[]> = new Map();
+
+  constructor(
+    @InjectModel(ChatMessage.name) private chatMessageModel: Model<ChatMessageDocument>,
+    @InjectModel(Conversation.name) private conversationModel: Model<ConversationDocument>,
+    private readonly aiService: AiService
+  ) {}
+
+  /**
+   * ✅ PARCIALMENTE IMPLEMENTADO - Enviar mensaje y obtener respuesta
+   *
+   * El candidato debe completar:
+   * - Integración con OpenAI para obtener respuesta real
+   * - Implementar streaming de la respuesta
+   * - Manejo de errores de la API de OpenAI
+   */
+  async sendMessage(dto: SendMessageDto) {
+    const { studentId, message, conversationId } = dto;
+
+    // Obtener o crear conversación
+    let conversation = conversationId
+      ? await this.conversationModel.findById(conversationId)
+      : await this.createConversation(studentId);
+
+    if (!conversation) {
+      conversation = await this.createConversation(studentId);
+    }
+
+    // Guardar mensaje del usuario
+    const userMessage = await this.chatMessageModel.create({
+      conversationId: conversation._id,
+      role: 'user',
+      content: message,
+    });
+
+    // Obtener historial para contexto
+    const history = await this.getConversationHistory(conversation._id.toString());
+
+    // TODO: El candidato debe implementar la llamada real a OpenAI
+    // Por ahora retornamos una respuesta placeholder
+    const aiResponse = await this.aiService.generateResponse(message, history);
+
+    // Guardar respuesta del asistente
+    const assistantMessage = await this.chatMessageModel.create({
+      conversationId: conversation._id,
+      role: 'assistant',
+      content: aiResponse.content,
+      metadata: {
+        tokensUsed: aiResponse.tokensUsed,
+        model: aiResponse.model,
+      },
+    });
+
+    // Actualizar conversación
+    await this.conversationModel.findByIdAndUpdate(conversation._id, {
+      lastMessageAt: new Date(),
+      $inc: { messageCount: 2 },
+    });
+
+    return {
+      conversationId: conversation._id,
+      userMessage,
+      assistantMessage,
+    };
+  }
+
+  /**
+   * 🐛 BUG INTENCIONAL: Este método tiene un bug donde el historial
+   * de mensajes no se limpia correctamente al iniciar una nueva conversación.
+   *
+   * El problema: cuando se inicia una nueva conversación, el array de historial
+   * se pasa por referencia desde el cache, y las modificaciones afectan
+   * a todas las referencias del mismo array.
+   */
+  async startNewConversation(studentId: string, initialContext?: string) {
+    // Crear nueva conversación
+    const conversation = await this.createConversation(studentId);
+    const conversationIdStr = conversation._id.toString();
+
+    // BUG: Obtenemos el historial de una conversación anterior si existe
+    // y lo reutilizamos POR REFERENCIA en vez de crear uno nuevo
+    const previousConversations = await this.conversationModel
+      .find({ studentId: new Types.ObjectId(studentId), isActive: false })
+      .sort({ createdAt: -1 })
+      .limit(1);
+
+    let history: MessageHistory[];
+
+    if (previousConversations.length > 0) {
+      // BUG: Aquí está el error - obtenemos el historial del cache
+      // y lo asignamos directamente sin hacer una copia
+      const prevId = previousConversations[0]._id.toString();
+      const cachedHistory = this.conversationCache.get(prevId);
+
+      // BUG: Asignación por referencia en vez de crear copia
+      // Debería ser: history = cachedHistory ? [...cachedHistory] : [];
+      history = cachedHistory || [];
+
+      // Al limpiar el array, también se limpia el original en el cache
+      // porque es la misma referencia
+      history.length = 0; // Esto afecta al cache original!
+    } else {
+      history = [];
+    }
+
+    // Agregar mensaje de sistema si hay contexto inicial
+    if (initialContext) {
+      history.push({
+        role: 'system',
+        content: initialContext,
+      });
+    }
+
+    // Guardar en cache (pero el bug ya ocurrió arriba)
+    this.conversationCache.set(conversationIdStr, history);
+
+    // Marcar conversaciones anteriores como inactivas
+    await this.conversationModel.updateMany(
+      { studentId: new Types.ObjectId(studentId), _id: { $ne: conversation._id } },
+      { isActive: false }
+    );
+
+    this.logger.log(`Nueva conversación iniciada: ${conversationIdStr}`);
+
+    return conversation;
+  }
+
+  /**
+   * 📝 TODO: Implementar obtención del historial de chat
+   *
+   * El candidato debe implementar:
+   * - Paginación del historial (limit/offset)
+   * - Ordenar mensajes por fecha (más antiguos primero)
+   * - Incluir metadata de cada mensaje
+   */
+  async getHistory(studentId: string, conversationId?: string) {
+    // TODO: Implementar
+    throw new Error('Not implemented - El candidato debe implementar este método');
+  }
+
+  /**
+   * 📝 TODO: Implementar eliminación del historial
+   *
+   * El candidato debe implementar:
+   * - Eliminar todos los mensajes de una conversación
+   * - Opcionalmente eliminar la conversación completa
+   * - Limpiar el cache en memoria
+   */
+  async deleteHistory(studentId: string, conversationId: string) {
+    // TODO: Implementar
+    throw new Error('Not implemented - El candidato debe implementar este método');
+  }
+
+  /**
+   * 📝 TODO: Implementar streaming de respuestas
+   *
+   * El candidato debe elegir e implementar SSE o WebSocket.
+   */
+  async streamResponse(dto: SendMessageDto) {
+    // TODO: Implementar
+    throw new Error('Not implemented');
+  }
+
+  /**
+   * Helper para crear una nueva conversación
+   */
+  private async createConversation(studentId: string) {
+    return this.conversationModel.create({
+      studentId: new Types.ObjectId(studentId),
+      title: 'Nueva conversación',
+      isActive: true,
+      lastMessageAt: new Date(),
+    });
+  }
+
+  /**
+   * Helper para obtener historial de conversación (para contexto de IA)
+   */
+  private async getConversationHistory(conversationId: string): Promise<MessageHistory[]> {
+    // Primero verificar cache
+    if (this.conversationCache.has(conversationId)) {
+      return this.conversationCache.get(conversationId)!;
+    }
+
+    // Si no está en cache, obtener de la base de datos
+    const messages = await this.chatMessageModel
+      .find({ conversationId: new Types.ObjectId(conversationId) })
+      .sort({ createdAt: 1 })
+      .limit(20) // Últimos 20 mensajes para contexto
+      .lean();
+
+    const history: MessageHistory[] = messages.map((m) => ({
+      role: m.role,
+      content: m.content,
+    }));
+
+    // Guardar en cache
+    this.conversationCache.set(conversationId, history);
+
+    return history;
+  }
+}
