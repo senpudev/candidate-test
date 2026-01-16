@@ -176,11 +176,8 @@ candidate-test/
 │           └── services/
 ├── data/
 │   └── courses/              # PDFs de contenido para RAG
-├── libs/
-│   └── shared/               # Tipos compartidos
-└── docs/
-    ├── RUBRICA.md            # Criterios de evaluación
-    └── figma-reference.md    # Referencia de diseño
+└── libs/
+    └── shared/               # Tipos compartidos
 ```
 
 ## Tu Tarea
@@ -297,10 +294,6 @@ npm run lint               # Verificar código
 1. **Código:** Push a este repositorio o envía un ZIP
 2. **DECISIONS.md:** Documenta tus decisiones técnicas
 3. **Demo:** Prepara una breve demostración de las funcionalidades
-
-## Evaluación
-
-Revisa `docs/RUBRICA.md` para ver los criterios de evaluación detallados.
 
 ## Datos de Prueba
 
