@@ -5,6 +5,8 @@ import { ChatService } from './chat.service';
 import { ChatMessage, ChatMessageSchema } from './schemas/chat-message.schema';
 import { Conversation, ConversationSchema } from './schemas/conversation.schema';
 import { AiModule } from '../ai/ai.module';
+// TODO: Para integrar RAG en el chat, debes importar KnowledgeModule aquí:
+// import { KnowledgeModule } from '../knowledge/knowledge.module';
 
 @Module({
   imports: [
@@ -13,6 +15,8 @@ import { AiModule } from '../ai/ai.module';
       { name: Conversation.name, schema: ConversationSchema },
     ]),
     AiModule,
+    // TODO: Añadir KnowledgeModule aquí para poder inyectar KnowledgeService en ChatService
+    // KnowledgeModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],

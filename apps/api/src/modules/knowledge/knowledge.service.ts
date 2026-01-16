@@ -27,8 +27,18 @@ export class KnowledgeService {
    * 📝 TODO: Implementar creacion de embeddings
    *
    * El candidato debe:
-   * 1. Usar OpenAI Embeddings API (text-embedding-3-small)
-   * 2. Recibir un texto y retornar el vector de embedding
+   * 1. Usar OpenAI Embeddings API (text-embedding-3-small o text-embedding-3-large)
+   * 2. Recibir un texto y retornar el vector de embedding (array de números)
+   *
+   * Ejemplo de implementación:
+   * ```typescript
+   * const openai = new OpenAI({ apiKey: this.configService.get('OPENAI_API_KEY') });
+   * const response = await openai.embeddings.create({
+   *   model: 'text-embedding-3-small',
+   *   input: text,
+   * });
+   * return response.data[0].embedding; // number[]
+   * ```
    */
   async createEmbedding(text: string): Promise<number[]> {
     // TODO: Implementar llamada a OpenAI Embeddings API
@@ -40,9 +50,25 @@ export class KnowledgeService {
    *
    * El candidato debe:
    * 1. Recibir el contenido de un curso (texto extraido del PDF)
-   * 2. Dividir en chunks apropiados (ej: 500-1000 tokens)
-   * 3. Crear embeddings para cada chunk
-   * 4. Guardar en la base de datos
+   * 2. Dividir en chunks usando this.splitIntoChunks() (ya implementado)
+   * 3. Crear embedding para cada chunk usando this.createEmbedding()
+   * 4. Guardar cada chunk en MongoDB con su embedding
+   *
+   * Flujo sugerido:
+   * ```typescript
+   * const chunks = this.splitIntoChunks(content, 1000);
+   * for (const [index, chunkText] of chunks.entries()) {
+   *   const embedding = await this.createEmbedding(chunkText);
+   *   await this.knowledgeChunkModel.create({
+   *     courseId: new Types.ObjectId(courseId),
+   *     content: chunkText,
+   *     embedding,
+   *     sourceFile,
+   *     chunkIndex: index,
+   *   });
+   * }
+   * return { chunksCreated: chunks.length };
+   * ```
    */
   async indexCourseContent(
     courseId: string,
@@ -54,15 +80,41 @@ export class KnowledgeService {
   }
 
   /**
-   * 📝 TODO: Implementar busqueda semantica
+   * 📝 TODO: Implementar busqueda semantica EN MEMORIA
+   *
+   * IMPORTANTE: La búsqueda se hace en memoria, NO con MongoDB Atlas Vector Search.
    *
    * El candidato debe:
-   * 1. Crear embedding de la query
-   * 2. Buscar chunks similares usando similitud coseno
-   * 3. Retornar los top K resultados mas relevantes
+   * 1. Crear embedding de la query usando this.createEmbedding()
+   * 2. Cargar chunks de MongoDB (filtrar por courseId si se especifica)
+   * 3. Calcular similitud coseno entre query y cada chunk usando this.cosineSimilarity()
+   * 4. Ordenar por score descendente y retornar top K resultados
    *
-   * Nota: Pueden usar busqueda en memoria (iterar todos los chunks)
-   * o MongoDB Atlas Vector Search si lo prefieren
+   * Flujo sugerido:
+   * ```typescript
+   * const { courseId, limit = 5, minScore = 0.7 } = options || {};
+   *
+   * // 1. Embedding de la query
+   * const queryEmbedding = await this.createEmbedding(query);
+   *
+   * // 2. Cargar chunks (filtrar por curso si aplica)
+   * const filter = courseId ? { courseId: new Types.ObjectId(courseId) } : {};
+   * const chunks = await this.knowledgeChunkModel.find(filter).lean();
+   *
+   * // 3. Calcular similitud con cada chunk
+   * const scored = chunks.map(chunk => ({
+   *   content: chunk.content,
+   *   courseId: chunk.courseId.toString(),
+   *   score: this.cosineSimilarity(queryEmbedding, chunk.embedding),
+   *   metadata: chunk.metadata,
+   * }));
+   *
+   * // 4. Filtrar por minScore, ordenar y limitar
+   * return scored
+   *   .filter(r => r.score >= minScore)
+   *   .sort((a, b) => b.score - a.score)
+   *   .slice(0, limit);
+   * ```
    */
   async searchSimilar(query: string, options?: {
     courseId?: string;

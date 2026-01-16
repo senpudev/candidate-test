@@ -90,13 +90,46 @@ El sistema RAG permite que el chat responda preguntas usando el contenido real d
 
 > **Tip:** Para usar `KnowledgeService` en `ChatService`, deberás importar `KnowledgeModule` en `chat.module.ts`.
 
+### Implementación de Búsqueda Semántica
+
+**IMPORTANTE:** La búsqueda semántica se implementa **en memoria**, NO usando MongoDB Atlas Vector Search. El flujo es:
+
+1. **Crear embedding de la query** → Llamar a OpenAI Embeddings API
+2. **Cargar chunks de MongoDB** → `find()` normal, filtrar por `courseId` si aplica
+3. **Calcular similitud** → Usar el helper `cosineSimilarity()` ya implementado
+4. **Ordenar y retornar top-K** → Los chunks más similares
+
+```typescript
+// Pseudocódigo del flujo en searchSimilar()
+async searchSimilar(query: string, options?) {
+  // 1. Crear embedding de la pregunta
+  const queryEmbedding = await this.createEmbedding(query);
+
+  // 2. Cargar chunks de la BD (filtrar por courseId si se especifica)
+  const chunks = await this.knowledgeChunkModel.find(filtros);
+
+  // 3. Calcular similitud con cada chunk
+  const scored = chunks.map(chunk => ({
+    ...chunk,
+    score: this.cosineSimilarity(queryEmbedding, chunk.embedding)
+  }));
+
+  // 4. Ordenar por score y retornar top-K
+  return scored
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+```
+
+El helper `cosineSimilarity(vecA, vecB)` ya está implementado en `knowledge.service.ts`.
+
 ---
 
 ## Requisitos Previos
 
 - Node.js 18+
 - MongoDB (local o Atlas)
-- Cuenta de OpenAI con API Key
+- Cuenta de OpenAI con API Key (Proporcionada en el momento de la prueba)
 
 ## Instalación
 
@@ -273,7 +306,15 @@ Después de ejecutar `npm run seed`:
 
 ### PDFs para RAG
 
-En la carpeta `data/courses/` encontrarás PDFs con contenido de los cursos.
+En la carpeta `data/courses/` encontrarás 5 PDFs con contenido educativo real:
+
+| Archivo | Curso | Contenido |
+|---------|-------|-----------|
+| `javascript-fundamentals.pdf` | Introducción a JavaScript | Variables, funciones, arrays, objetos, async/await |
+| `react-hooks.pdf` | React desde Cero | Hooks, estado, useEffect, useContext, optimización |
+| `nodejs-express.pdf` | Node.js y Express | Módulos, Express, middleware, rutas, errores |
+| `mongodb-fundamentals.pdf` | MongoDB Esencial | CRUD, queries, aggregation, índices, Mongoose |
+| `typescript-profesional.pdf` | TypeScript Profesional | Tipos, interfaces, genéricos, utility types |
 
 **Para extraer texto de los PDFs**, puedes usar la librería `pdf-parse`:
 
@@ -285,7 +326,7 @@ npm install pdf-parse
 import pdf from 'pdf-parse';
 import * as fs from 'fs';
 
-const dataBuffer = fs.readFileSync('data/courses/javascript.pdf');
+const dataBuffer = fs.readFileSync('data/courses/javascript-fundamentals.pdf');
 const data = await pdf(dataBuffer);
 console.log(data.text); // Texto extraído
 ```

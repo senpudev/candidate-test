@@ -15,6 +15,7 @@ Esta prueba evalúa las habilidades del candidato en:
 ## Bug Intencional
 
 ### Ubicación Exacta
+
 - **Archivo:** `apps/api/src/modules/chat/chat.service.ts`
 - **Método:** `startNewConversation()`
 - **Líneas:** 73-89 (aproximadamente)
