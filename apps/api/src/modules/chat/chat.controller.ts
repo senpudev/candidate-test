@@ -44,12 +44,7 @@ export class ChatController {
   }
 
   /**
-   * 📝 TODO: Implementar obtención del historial
-   *
-   * El candidato debe:
-   * - Implementar paginación con query params (page, limit)
-   * - Filtrar por conversationId si se proporciona
-   * - Retornar mensajes ordenados cronológicamente
+   * TODO: Implement history retrieval with pagination
    */
   @Get('history/:studentId')
   @ApiOperation({ summary: 'Obtener historial de chat del estudiante' })
@@ -69,12 +64,7 @@ export class ChatController {
   }
 
   /**
-   * 📝 TODO: Implementar eliminación del historial
-   *
-   * El candidato debe:
-   * - Validar que el studentId corresponda a la conversación
-   * - Eliminar mensajes y opcionalmente la conversación
-   * - Retornar confirmación de eliminación
+   * TODO: Implement history deletion
    */
   @Delete('history/:studentId/:conversationId')
   @HttpCode(HttpStatus.NO_CONTENT)
@@ -91,25 +81,6 @@ export class ChatController {
   }
 
   /**
-   * 📝 TODO: Implementar endpoint de streaming
-   *
-   * El candidato debe elegir e implementar:
-   * - SSE: Usar @Sse() decorator y retornar Observable
-   * - WebSocket: Crear un Gateway separado
-   *
-   * El endpoint debe:
-   * - Enviar la respuesta del chat token por token
-   * - Manejar errores y timeout
-   * - Cerrar la conexión al terminar
+   * TODO: Implement streaming endpoint
    */
-  // TODO: Descomentar y completar según la opción elegida
-  //
-  // Opción SSE:
-  // @Sse('stream/:conversationId')
-  // @ApiOperation({ summary: 'Stream de respuestas del chat' })
-  // streamResponse(@Param('conversationId') conversationId: string) {
-  //   return this.chatService.streamResponse(...);
-  // }
-  //
-  // Opción WebSocket: Crear chat.gateway.ts
 }

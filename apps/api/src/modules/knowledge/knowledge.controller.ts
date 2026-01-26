@@ -18,12 +18,7 @@ export class KnowledgeController {
   constructor(private readonly knowledgeService: KnowledgeService) {}
 
   /**
-   * 📝 TODO: Implementar endpoint para indexar contenido
-   *
-   * El candidato debe:
-   * 1. Recibir courseId y content (texto del PDF)
-   * 2. Llamar al servicio para indexar
-   * 3. Retornar estadisticas de chunks creados
+   * TODO: Implement content indexing endpoint
    */
   @Post('index')
   @ApiOperation({ summary: 'Indexar contenido de un curso' })
@@ -36,12 +31,7 @@ export class KnowledgeController {
   }
 
   /**
-   * 📝 TODO: Implementar endpoint de busqueda semantica
-   *
-   * El candidato debe:
-   * 1. Recibir query de busqueda
-   * 2. Opcionalmente filtrar por courseId
-   * 3. Retornar resultados relevantes
+   * TODO: Implement semantic search endpoint
    */
   @Get('search')
   @ApiOperation({ summary: 'Buscar contenido similar' })

@@ -62,37 +62,14 @@ Reglas:
   ): Promise<AiResponse> {
     this.logger.debug(`Generando respuesta para: "${userMessage.substring(0, 50)}..."`);
 
-    // TODO: El candidato debe implementar la llamada real a OpenAI
-    // Ejemplo de implementación esperada:
-    //
-    // const messages = [
-    //   { role: 'system', content: this.baseSystemPrompt },
-    //   ...history,
-    //   { role: 'user', content: userMessage },
-    // ];
-    //
-    // const completion = await this.openai.chat.completions.create({
-    //   model: 'gpt-3.5-turbo',
-    //   messages,
-    //   temperature: 0.7,
-    //   max_tokens: 500,
-    // });
-    //
-    // return {
-    //   content: completion.choices[0].message.content,
-    //   tokensUsed: completion.usage?.total_tokens,
-    //   model: completion.model,
-    // };
+    // TODO: Implement OpenAI integration
 
     // Respuesta placeholder mientras no está implementado
     return this.generatePlaceholderResponse(userMessage);
   }
 
   /**
-   * 📝 TODO: Implementar streaming de respuestas
-   *
-   * El candidato debe implementar streaming real con OpenAI.
-   * Consultar la documentación oficial de OpenAI para la implementación.
+   * TODO: Implement streaming responses
    */
   async *generateStreamResponse(
     userMessage: string,
@@ -110,12 +87,7 @@ Reglas:
   }
 
   /**
-   * 📝 TODO: Implementar manejo de contexto personalizado
-   *
-   * El candidato debe implementar un método que:
-   * - Acepte información del estudiante (nombre, cursos, progreso)
-   * - Genere un system prompt personalizado
-   * - Incluya el contexto en las llamadas a OpenAI
+   * TODO: Implement contextual system prompt
    */
   buildContextualSystemPrompt(studentContext: {
     name: string;
@@ -127,22 +99,14 @@ Reglas:
   }
 
   /**
-   * 📝 TODO: Implementar generacion de respuesta con RAG
-   *
-   * El candidato debe:
-   * 1. Usar KnowledgeService para buscar contexto relevante
-   * 2. Incluir el contexto en el prompt
-   * 3. Llamar a OpenAI con el contexto enriquecido
+   * TODO: Implement RAG-enhanced response generation
    */
   async generateResponseWithRAG(
     userMessage: string,
     history: MessageHistory[] = [],
     relevantContext?: string[]
   ): Promise<AiResponse> {
-    // TODO: Implementar
-    // El candidato debe:
-    // 1. Construir un prompt que incluya el contexto relevante
-    // 2. Llamar a OpenAI con el contexto
+    // TODO: Implement
     throw new Error('Not implemented');
   }
 

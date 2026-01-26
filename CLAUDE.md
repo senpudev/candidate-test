@@ -50,7 +50,7 @@ npx nx test candidate-web --testFile=Dashboard.spec.tsx
 1. **Indexing**: PDF → extract text → chunk → embed (OpenAI) → store in MongoDB (`KnowledgeChunk`)
 2. **Query**: User message → embed → cosine similarity search → top-K context → OpenAI with context
 
-Key integration point: `ChatService.sendMessage()` should call `KnowledgeService.searchSimilar()` to get context, then pass to `AiService.generateResponseWithRAG()`.
+The RAG system should integrate with the chat flow to provide context-aware responses.
 
 ### Frontend Structure (`apps/web/src/`)
 
@@ -72,10 +72,6 @@ After `npm run seed`:
 - Student ID: `507f1f77bcf86cd799439011`
 - Email: `maria@test.com`
 - Course PDFs: `data/courses/`
-
-## Known Bug
-
-There is an intentional bug in `apps/api/src/modules/chat/chat.service.ts` in the `startNewConversation` method. The issue involves array reference mutation where cached conversation history is modified by reference instead of being copied, causing unintended side effects on the original cache.
 
 ## Development Notes
 

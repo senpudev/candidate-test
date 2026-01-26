@@ -15,17 +15,7 @@ interface UseChatOptions {
 }
 
 /**
- * 📝 TODO: El candidato debe completar este hook
- *
- * Funcionalidades a implementar:
- * 1. Manejo de estado de mensajes
- * 2. Integración con streaming de respuestas
- * 3. Persistencia de conversación
- * 4. Manejo de errores
- * 5. Nueva conversación
- *
- * Este hook debe abstraer toda la lógica del chat
- * para que el componente Chat sea más simple
+ * TODO: Complete this hook
  */
 export function useChat({ studentId, onError }: UseChatOptions) {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -76,21 +66,16 @@ export function useChat({ studentId, onError }: UseChatOptions) {
     },
   });
 
-  // TODO: Implementar streaming de respuestas
+  // TODO: Implement streaming
   const sendWithStreaming = useCallback(
     async (message: string) => {
-      // 1. Añadir mensaje del usuario
-      // 2. Iniciar conexión SSE o WebSocket
-      // 3. Actualizar mensaje del asistente token por token
-      // 4. Cerrar conexión al terminar
-
-      // Por ahora usar la versión sin streaming
+      // Placeholder - uses non-streaming version
       sendMutation.mutate(message);
     },
     [sendMutation]
   );
 
-  // TODO: Implementar nueva conversación
+  // TODO: Implement new conversation
   const startNewConversation = useCallback(async () => {
     try {
       const result = await api.startNewConversation(studentId);
@@ -102,14 +87,13 @@ export function useChat({ studentId, onError }: UseChatOptions) {
     }
   }, [studentId, onError]);
 
-  // TODO: Implementar carga de historial
+  // TODO: Implement history loading
   const loadHistory = useCallback(async () => {
     if (!conversationId) return;
 
     try {
       const history = await api.getChatHistory(studentId, conversationId);
-      // Transformar y establecer mensajes
-      // setMessages(...)
+      // TODO: Transform and set messages
     } catch (error) {
       onError?.(error as Error);
     }

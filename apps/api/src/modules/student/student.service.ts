@@ -100,19 +100,7 @@ export class StudentService {
   }
 
   /**
-   * 📝 TODO: Implementar estadísticas detalladas
-   *
-   * El candidato debe implementar este método para retornar:
-   * - totalStudyHours: Total de horas de estudio
-   * - completedVsInProgress: { completed: number, inProgress: number }
-   * - studyStreak: Días consecutivos de estudio
-   * - weeklyAverageProgress: Promedio de progreso semanal
-   * - timeByCategory: { [category: string]: number } - minutos por categoría
-   *
-   * Hints:
-   * - Usar agregaciones de MongoDB ($group, $sum, etc.)
-   * - Para la racha, calcular días consecutivos desde hoy hacia atrás
-   * - Considerar usar lookup para unir Progress con Course
+   * TODO: Implement detailed statistics
    */
   async getDetailedStats(studentId: string) {
     // TODO: El candidato debe implementar este método
@@ -120,15 +108,7 @@ export class StudentService {
   }
 
   /**
-   * 📝 TODO: Implementar actualización de preferencias
-   *
-   * El candidato debe:
-   * 1. Buscar el estudiante por ID
-   * 2. Hacer un merge de las preferencias existentes con las nuevas
-   * 3. Guardar y retornar el estudiante actualizado
-   * 4. Manejar el caso de estudiante no encontrado (retornar null)
-   *
-   * Hint: Usar findByIdAndUpdate con { new: true } para retornar el documento actualizado
+   * TODO: Implement preferences update
    */
   async updatePreferences(studentId: string, dto: UpdatePreferencesDto) {
     // TODO: El candidato debe implementar este método

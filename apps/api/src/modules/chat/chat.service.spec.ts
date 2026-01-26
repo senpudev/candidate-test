@@ -53,14 +53,6 @@ describe('ChatService', () => {
     jest.clearAllMocks();
   });
 
-  /**
-   * 📝 TODO: El candidato debe implementar estos tests
-   *
-   * Nota: Hay un BUG intencional en el método startNewConversation
-   * que el candidato debería descubrir al escribir estos tests.
-   * El historial de mensajes se pasa por referencia en vez de copiarse,
-   * lo que causa que el historial de conversaciones anteriores se borre.
-   */
   describe('sendMessage', () => {
     it.todo('should create user message and get AI response');
     it.todo('should create new conversation if none exists');
@@ -72,11 +64,7 @@ describe('ChatService', () => {
     it.todo('should create a new conversation');
     it.todo('should mark previous conversations as inactive');
     it.todo('should initialize empty history for new conversation');
-    /**
-     * 🐛 Este test debería fallar debido al bug intencional
-     * El candidato debe descubrir el bug y proponer una solución
-     */
-    it.todo('should not affect history of previous conversations (BUG TEST)');
+    it.todo('should not affect history of previous conversations');
   });
 
   describe('getHistory', () => {
