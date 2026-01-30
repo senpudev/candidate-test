@@ -1,7 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-// TODO: Descomentar cuando el candidato implemente la integración real
-// import OpenAI from 'openai';
+import OpenAI from 'openai'; // OpenAI SDK v4.20.0
 
 interface MessageHistory {
   role: 'user' | 'assistant' | 'system';
@@ -17,8 +16,7 @@ interface AiResponse {
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
-  // TODO: Descomentar cuando el candidato implemente la integración real
-  // private openai: OpenAI;
+  private readonly openai?: OpenAI;
 
   /**
    * System prompt base para el asistente de estudiantes
@@ -39,54 +37,86 @@ Reglas:
 - Usa ejemplos prácticos cuando sea posible`;
 
   constructor(private readonly configService: ConfigService) {
-    // TODO: El candidato debe inicializar el cliente de OpenAI
-    // const apiKey = this.configService.get<string>('OPENAI_API_KEY');
-    // if (apiKey) {
-    //   this.openai = new OpenAI({ apiKey });
-    // }
+    const apiKey = this.configService.get<string>('OPENAI_API_KEY');
+    if (apiKey) {
+      this.openai = new OpenAI({ apiKey });
+      this.logger.log('OpenAI client initialized');
+    } else {
+      this.logger.warn('OPENAI_API_KEY not found in environment variables');
+    }
   }
 
   /**
    * ✅ ESTRUCTURA BASE - Genera respuesta del asistente
+   * ✅ IMPLEMENTADO (unificado con RAG: si relevantContext está presente, se enriquece el system prompt)
    *
-   * Actualmente retorna una respuesta placeholder.
+   * Actualmente retorna una respuesta placeholder si OpenAI no está configurado.
    * El candidato debe:
-   * 1. Implementar la llamada real a OpenAI
-   * 2. Manejar errores de la API
-   * 3. Implementar retry logic si es necesario
-   * 4. Considerar rate limiting
+   * 1. ✅ Implementar la llamada real a OpenAI
+   * 2. ✅ Manejar errores de la API
+   * 3. ⚠️ Implementar retry logic si es necesario (no implementado aún)
+   * 4. ⚠️ Considerar rate limiting (no implementado aún)
    */
   async generateResponse(
     userMessage: string,
-    history: MessageHistory[] = []
+    history: MessageHistory[] = [],
+    relevantContext?: string[]
   ): Promise<AiResponse> {
-    this.logger.debug(`Generando respuesta para: "${userMessage.substring(0, 50)}..."`);
+    const useRAG = relevantContext && relevantContext.length > 0;
+    this.logger.debug(
+      `Generating response ${useRAG ? 'with RAG' : 'basic'} for: "${userMessage.substring(0, 50)}..."`
+    );
 
-    // TODO: El candidato debe implementar la llamada real a OpenAI
-    // Ejemplo de implementación esperada:
-    //
-    // const messages = [
-    //   { role: 'system', content: this.baseSystemPrompt },
-    //   ...history,
-    //   { role: 'user', content: userMessage },
-    // ];
-    //
-    // const completion = await this.openai.chat.completions.create({
-    //   model: 'gpt-3.5-turbo',
-    //   messages,
-    //   temperature: 0.7,
-    //   max_tokens: 500,
-    // });
-    //
-    // return {
-    //   content: completion.choices[0].message.content,
-    //   tokensUsed: completion.usage?.total_tokens,
-    //   model: completion.model,
-    // };
+    if (!this.openai) {
+      this.logger.warn('OpenAI client not initialized, returning placeholder response');
+      return this.generatePlaceholderResponse(userMessage);
+    }
 
-    // Respuesta placeholder mientras no está implementado
-    return this.generatePlaceholderResponse(userMessage);
+    try {
+      
+      let systemPrompt = this.baseSystemPrompt;
+      if (useRAG) {
+        // Enrich system prompt with RAG context if available (relevantContext)
+        const contextText = relevantContext!
+          .map((ctx, i) => `[Contexto ${i + 1}]: ${ctx}`)
+          .join('\n\n');
+        systemPrompt += `\n\n--- CONTEXTO RELEVANTE DEL CURSO ---\n${contextText}\n\nUsa este contexto para dar respuestas más precisas y específicas sobre el contenido del curso.`;
+        this.logger.debug(`RAG context included: ${relevantContext.length} chunks`);
+      }
+
+      // {system prompt (Enriched opt), history, user message}
+      const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        { role: 'system', content: systemPrompt },
+        ...history.map((msg) => ({
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+        })),
+        { role: 'user', content: userMessage },
+      ];
+
+      const completion = await this.openai.chat.completions.create({
+        model: 'gpt-4',
+        messages,
+        temperature: 0.7, // Balance between creativity and consistency
+        max_tokens: 500, // Enough maybe for an educational chat
+      });
+
+      const responseContent = completion.choices[0]?.message?.content || '';
+      if (!responseContent) {
+        throw new Error('Empty response from OpenAI');
+      }
+
+      return {
+        content: responseContent,
+        tokensUsed: completion.usage?.total_tokens,
+        model: completion.model,
+      };
+    } catch (error) {
+      this.logger.error(`Error calling OpenAI API: ${error.message}`, error.stack);
+      return this.generatePlaceholderResponse(userMessage);
+    }
   }
+
 
   /**
    * 📝 TODO: Implementar streaming de respuestas
@@ -124,26 +154,6 @@ Reglas:
   }): string {
     // TODO: Implementar personalizacion del prompt
     return this.baseSystemPrompt;
-  }
-
-  /**
-   * 📝 TODO: Implementar generacion de respuesta con RAG
-   *
-   * El candidato debe:
-   * 1. Usar KnowledgeService para buscar contexto relevante
-   * 2. Incluir el contexto en el prompt
-   * 3. Llamar a OpenAI con el contexto enriquecido
-   */
-  async generateResponseWithRAG(
-    userMessage: string,
-    history: MessageHistory[] = [],
-    relevantContext?: string[]
-  ): Promise<AiResponse> {
-    // TODO: Implementar
-    // El candidato debe:
-    // 1. Construir un prompt que incluya el contexto relevante
-    // 2. Llamar a OpenAI con el contexto
-    throw new Error('Not implemented');
   }
 
   /**
