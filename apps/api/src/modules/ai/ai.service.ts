@@ -117,7 +117,30 @@ Reglas:
     }
   }
 
-
+  // Create embedding from text using OpenAI API (text-embedding-3-small)
+  async createEmbedding(text: string): Promise<number[]> {
+    if (!text || text.trim().length === 0) {
+      throw new Error('Text cannot be empty');
+    }
+    if (!this.openai) {
+      throw new Error('OpenAI client not initialized. Please configure OPENAI_API_KEY');
+    }
+    try {
+      const response = await this.openai.embeddings.create({
+        model: 'text-embedding-3-small',
+        input: text,
+      });
+      const embedding = response.data[0]?.embedding;
+      if (!embedding || embedding.length === 0) {
+        throw new Error('Empty embedding returned from OpenAI');
+      }
+      return embedding;
+    } catch (error) {
+      this.logger.error(`Error creating embedding: ${error instanceof Error ? error.message : error}`, error instanceof Error ? error.stack : undefined);
+      throw error;
+    }
+  }
+  
   /**
    * 📝 TODO: Implementar streaming de respuestas
    *
