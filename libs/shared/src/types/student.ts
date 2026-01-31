@@ -34,3 +34,33 @@ export interface RecentCourse {
   progress: number;
   lastAccessed?: Date;
 }
+
+/** Main $group result from getDetailedStats aggregation (totals + dates for streak). */
+export interface StatsMainGroup {
+  totalTimeMinutes: number;
+  completed: number;
+  inProgress: number;
+  avgProgress: number | null;
+  dates: (string | null)[];
+}
+
+/** $group result by category: minutes per category. */
+export interface StatsByCategoryGroup {
+  _id: string;
+  totalMinutes: number;
+}
+
+/** Shape of the document returned by getDetailedStats $facet. */
+export interface GetDetailedStatsAggregationResult {
+  main: StatsMainGroup[];
+  byCategory: StatsByCategoryGroup[];
+}
+
+/** Return type of getDetailedStats. */
+export interface DetailedStats {
+  totalStudyHours: number;
+  completedVsInProgress: { completed: number; inProgress: number };
+  studyStreak: number;
+  weeklyAverageProgress: number;
+  timeByCategory: Record<string, number>;
+}
