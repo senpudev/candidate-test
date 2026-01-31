@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
+import { DetailedStats, GetDetailedStatsAggregationResult } from '@candidate-test/shared';
 import { Student, StudentDocument } from './schemas/student.schema';
 import { Course, CourseDocument } from './schemas/course.schema';
 import { Progress, ProgressDocument } from './schemas/progress.schema';
@@ -89,50 +90,145 @@ export class StudentService {
         ...course,
         progress: progress
           ? {
-              completedLessons: progress.completedLessons,
-              progressPercentage: progress.progressPercentage,
-              lastAccessedAt: progress.lastAccessedAt,
-              timeSpentMinutes: progress.timeSpentMinutes,
-            }
+            completedLessons: progress.completedLessons,
+            progressPercentage: progress.progressPercentage,
+            lastAccessedAt: progress.lastAccessedAt,
+            timeSpentMinutes: progress.timeSpentMinutes,
+          }
           : null,
       };
     });
   }
 
-  /**
-   * 📝 TODO: Implementar estadísticas detalladas
-   *
-   * El candidato debe implementar este método para retornar:
-   * - totalStudyHours: Total de horas de estudio
-   * - completedVsInProgress: { completed: number, inProgress: number }
-   * - studyStreak: Días consecutivos de estudio
-   * - weeklyAverageProgress: Promedio de progreso semanal
-   * - timeByCategory: { [category: string]: number } - minutos por categoría
-   *
-   * Hints:
-   * - Usar agregaciones de MongoDB ($group, $sum, etc.)
-   * - Para la racha, calcular días consecutivos desde hoy hacia atrás
-   * - Considerar usar lookup para unir Progress con Course
-   */
-  async getDetailedStats(studentId: string) {
-    // TODO: El candidato debe implementar este método
-    throw new Error('Not implemented');
+  // ✅ Estadísticas detalladas con aggregation pipeline de MongoDB.
+  async getDetailedStats(studentId: string): Promise<DetailedStats> {
+    const objectId = new Types.ObjectId(studentId);
+
+    const collection = this.progressModel.collection;
+    const results = await collection
+      .aggregate<GetDetailedStatsAggregationResult>([
+        { $match: { studentId: objectId } },
+        {
+          $lookup: {
+            from: 'courses',
+            localField: 'courseId',
+            foreignField: '_id',
+            as: 'courseDoc',
+          },
+        },
+        { $unwind: { path: '$courseDoc', preserveNullAndEmptyArrays: true } },
+        {
+          $facet: {
+            main: [
+              {
+                $group: {
+                  _id: null,
+                  totalTimeMinutes: {
+                    $sum: { $ifNull: ['$timeSpentMinutes', 0] },
+                  },
+                  completed: {
+                    $sum: {
+                      $cond: [{ $eq: ['$progressPercentage', 100] }, 1, 0],
+                    },
+                  },
+                  inProgress: {
+                    $sum: {
+                      $cond: [
+                        {
+                          $and: [
+                            { $gt: ['$progressPercentage', 0] },
+                            { $lt: ['$progressPercentage', 100] },
+                          ],
+                        },
+                        1,
+                        0,
+                      ],
+                    },
+                  },
+                  avgProgress: { $avg: '$progressPercentage' },
+                  dates: {
+                    $addToSet: {
+                      $cond: [
+                        { $ne: ['$lastAccessedAt', null] },
+                        {
+                          $dateToString: {
+                            format: '%Y-%m-%d',
+                            date: '$lastAccessedAt',
+                          },
+                        },
+                        null,
+                      ],
+                    },
+                  },
+                },
+              },
+            ],
+            byCategory: [
+              {
+                $group: {
+                  _id: {
+                    $ifNull: ['$courseDoc.category', 'Sin categoría'],
+                  },
+                  totalMinutes: {
+                    $sum: { $ifNull: ['$timeSpentMinutes', 0] },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      ])
+      .toArray();
+
+    const facet = results[0];
+    const main = facet?.main?.[0];
+    const byCategory = facet?.byCategory ?? [];
+
+    const totalTimeMinutes = main?.totalTimeMinutes ?? 0;
+    const completed = main?.completed ?? 0;
+    const inProgress = main?.inProgress ?? 0;
+    const avgProgress = main?.avgProgress ?? 0;
+    const dates = (main?.dates ?? []).filter(
+      (d): d is string => d != null && d !== ''
+    );
+    const studyStreak = this.computeStudyStreakFromDates(dates);
+
+    const timeByCategory: Record<string, number> = {};
+    for (const row of byCategory) {
+      timeByCategory[row._id] = row.totalMinutes;
+    }
+
+    return {
+      totalStudyHours: Math.round((totalTimeMinutes / 60) * 100) / 100,
+      completedVsInProgress: { completed, inProgress },
+      studyStreak,
+      weeklyAverageProgress: Math.round((avgProgress as number) * 100) / 100,
+      timeByCategory,
+    };
   }
 
-  /**
-   * 📝 TODO: Implementar actualización de preferencias
-   *
-   * El candidato debe:
-   * 1. Buscar el estudiante por ID
-   * 2. Hacer un merge de las preferencias existentes con las nuevas
-   * 3. Guardar y retornar el estudiante actualizado
-   * 4. Manejar el caso de estudiante no encontrado (retornar null)
-   *
-   * Hint: Usar findByIdAndUpdate con { new: true } para retornar el documento actualizado
-   */
+
+  // Compute study streak from today backwards (YYYY-MM-DD format)
+  private computeStudyStreakFromDates(dateStrings: string[]): number {
+    const sortedDates = [...new Set(dateStrings)].sort().reverse();
+    if (sortedDates.length === 0) return 0;
+
+    const today = new Date().toISOString().slice(0, 10);
+    let streak = 0;
+    let check = today;
+    while (sortedDates.includes(check)) {
+      streak++;
+      const d = new Date(check);
+      d.setDate(d.getDate() - 1);
+      check = d.toISOString().slice(0, 10);
+    }
+    return streak;
+  }
+
+
+   // Implementar actualización de preferencias
   async updatePreferences(studentId: string, dto: UpdatePreferencesDto) {
-    // TODO: El candidato debe implementar este método
-    throw new Error('Not implemented');
+
   }
 
   /**
