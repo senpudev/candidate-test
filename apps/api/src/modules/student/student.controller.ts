@@ -6,7 +6,7 @@ import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 @ApiTags('students')
 @Controller('students')
 export class StudentController {
-  constructor(private readonly studentService: StudentService) {}
+  constructor(private readonly studentService: StudentService) { }
 
   /**
    * ✅ IMPLEMENTADO - Endpoint del dashboard principal
@@ -37,9 +37,9 @@ export class StudentController {
   }
 
   /**
-   * 📝 TODO: Implementar endpoint de estadísticas
+   * ✅ Implementar endpoint de estadísticas
    *
-   * Este endpoint debe retornar estadísticas detalladas del estudiante:
+   * Este endpoint retorna estadísticas detalladas del estudiante:
    * - Total de horas de estudio
    * - Cursos completados vs en progreso
    * - Racha de días consecutivos de estudio
@@ -53,21 +53,14 @@ export class StudentController {
   @ApiParam({ name: 'id', description: 'ID del estudiante' })
   @ApiResponse({ status: 200, description: 'Estadísticas del estudiante' })
   async getStats(@Param('id') id: string) {
-    // TODO: Implementar este método en StudentService
-    // return this.studentService.getDetailedStats(id);
-
-    throw new Error('Not implemented - El candidato debe implementar este endpoint');
+    const student = await this.studentService.findById(id);
+    if (!student) {
+      throw new NotFoundException(`Estudiante con ID ${id} no encontrado`);
+    }
+    return this.studentService.getDetailedStats(id);
   }
 
-  /**
-   * 📝 TODO: Implementar actualización de preferencias
-   *
-   * Este endpoint debe:
-   * - Validar que las preferencias sean válidas (usar el DTO)
-   * - Actualizar solo los campos proporcionados (merge parcial)
-   * - Retornar el estudiante actualizado
-   * - Manejar el caso de estudiante no encontrado
-   */
+  // Update Preferences
   @Patch(':id/preferences')
   @ApiOperation({ summary: 'Actualizar preferencias del estudiante' })
   @ApiParam({ name: 'id', description: 'ID del estudiante' })
@@ -77,9 +70,13 @@ export class StudentController {
     @Param('id') id: string,
     @Body() updatePreferencesDto: UpdatePreferencesDto
   ) {
-    // TODO: Implementar este método en StudentService
-    // return this.studentService.updatePreferences(id, updatePreferencesDto);
-
-    throw new Error('Not implemented - El candidato debe implementar este endpoint');
+    const updated = await this.studentService.updatePreferences(
+      id,
+      updatePreferencesDto
+    );
+    if (!updated) {
+      throw new NotFoundException(`Estudiante con ID ${id} no encontrado`);
+    }
+    return updated;
   }
 }
