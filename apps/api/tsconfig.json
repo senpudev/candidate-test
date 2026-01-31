@@ -11,6 +11,9 @@
     "sourceMap": true,
     "outDir": "../../dist/apps/api",
     "baseUrl": ".",
+    "paths": {
+      "@candidate-test/shared": ["../../libs/shared/src/index.ts"] // import alias
+    },
     "incremental": true,
     "strictNullChecks": true,
     "noImplicitAny": false,
