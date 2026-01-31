@@ -21,6 +21,7 @@ export class ChatMessage {
     tokensUsed?: number;
     model?: string;
     responseTime?: number;
+    chunksUsed?: number[]; // When RAG is used (tracking and debugging)
   };
 }
 
