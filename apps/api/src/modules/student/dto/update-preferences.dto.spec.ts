@@ -40,10 +40,26 @@ describe('UpdatePreferencesDto', () => {
     expect(errors.length).toBe(0);
   });
 
-  /**
-   * 📝 TODO: El candidato debe añadir más tests de validación
-   */
-  it.todo('should reject non-boolean notifications');
-  it.todo('should accept valid language string');
-  it.todo('should accept multiple valid fields');
+  it('should reject non-boolean notifications', async () => {
+    const dto = plainToInstance(UpdatePreferencesDto, { notifications: 'yes' });
+    const errors = await validate(dto);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(errors[0].constraints).toHaveProperty('isBoolean');
+  });
+
+  it('should accept valid language string', async () => {
+    const dto = plainToInstance(UpdatePreferencesDto, { language: 'es' });
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0);
+  });
+
+  it('should accept multiple valid fields', async () => {
+    const dto = plainToInstance(UpdatePreferencesDto, {
+      theme: 'light',
+      language: 'en',
+      notifications: false,
+    });
+    const errors = await validate(dto);
+    expect(errors.length).toBe(0);
+  });
 });
