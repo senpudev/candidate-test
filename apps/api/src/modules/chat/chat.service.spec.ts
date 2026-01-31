@@ -1,9 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getModelToken } from '@nestjs/mongoose';
+import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { AiService } from '../ai/ai.service';
+import { KnowledgeService } from '../knowledge/knowledge.service';
 import { ChatMessage } from './schemas/chat-message.schema';
 import { Conversation } from './schemas/conversation.schema';
+import { SendMessageDto } from './dto/send-message.dto';
 
 describe('ChatService', () => {
   let service: ChatService;
@@ -27,6 +30,13 @@ describe('ChatService', () => {
     generateResponse: jest.fn(),
   };
 
+  const mockKnowledgeService = {
+    searchSimilar: jest.fn(),
+  };
+
+  const studentId = new Types.ObjectId().toString();
+  const conversationId = new Types.ObjectId().toString();
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -43,6 +53,10 @@ describe('ChatService', () => {
           provide: AiService,
           useValue: mockAiService,
         },
+        {
+          provide: KnowledgeService,
+          useValue: mockKnowledgeService,
+        },
       ],
     }).compile();
 
@@ -53,19 +67,125 @@ describe('ChatService', () => {
     jest.clearAllMocks();
   });
 
-  /**
-   * 📝 TODO: El candidato debe implementar estos tests
-   *
-   * Nota: Hay un BUG intencional en el método startNewConversation
-   * que el candidato debería descubrir al escribir estos tests.
-   * El historial de mensajes se pasa por referencia en vez de copiarse,
-   * lo que causa que el historial de conversaciones anteriores se borre.
-   */
   describe('sendMessage', () => {
-    it.todo('should create user message and get AI response');
-    it.todo('should create new conversation if none exists');
-    it.todo('should use existing conversation if provided');
-    it.todo('should handle AI service errors gracefully');
+    it('should create user message and get AI response', async () => {
+      const dto: SendMessageDto = {
+        studentId,
+        message: 'Hello',
+      };
+      const conversation = {
+        _id: new Types.ObjectId(conversationId),
+        studentId: new Types.ObjectId(studentId),
+        title: 'Nueva conversación',
+        isActive: true,
+      };
+      const userMessageDoc = { _id: new Types.ObjectId(), role: 'user', content: dto.message };
+      const assistantMessageDoc = { _id: new Types.ObjectId(), role: 'assistant', content: 'Hi there!' };
+
+      mockConversationModel.create.mockResolvedValue(conversation);
+      mockChatMessageModel.find.mockResolvedValue([]);
+      mockKnowledgeService.searchSimilar.mockResolvedValue([]);
+      mockAiService.generateResponse.mockResolvedValue({
+        content: 'Hi there!',
+        tokensUsed: 10,
+        model: 'gpt-4',
+      });
+      mockChatMessageModel.create
+        .mockResolvedValueOnce(userMessageDoc)
+        .mockResolvedValueOnce(assistantMessageDoc);
+      mockConversationModel.findByIdAndUpdate.mockResolvedValue(conversation);
+
+      const result = await service.sendMessage(dto);
+
+      expect(result.conversationId).toEqual(conversation._id);
+      expect(result.userMessage).toEqual(userMessageDoc);
+      expect(result.assistantMessage).toEqual(assistantMessageDoc);
+      expect(mockChatMessageModel.create).toHaveBeenCalledTimes(2);
+      expect(mockAiService.generateResponse).toHaveBeenCalledWith(
+        dto.message,
+        [],
+        undefined
+      );
+    });
+
+    it('should create new conversation if none exists', async () => {
+      const dto: SendMessageDto = { studentId, message: 'Hi' };
+      const newConversation = {
+        _id: new Types.ObjectId(),
+        studentId: new Types.ObjectId(studentId),
+        title: 'Nueva conversación',
+        isActive: true,
+      };
+
+      mockConversationModel.create.mockResolvedValue(newConversation);
+      mockChatMessageModel.find.mockResolvedValue([]);
+      mockKnowledgeService.searchSimilar.mockResolvedValue([]);
+      mockAiService.generateResponse.mockResolvedValue({
+        content: 'Hello',
+        tokensUsed: 5,
+        model: 'gpt-4',
+      });
+      mockChatMessageModel.create.mockResolvedValue({ _id: new Types.ObjectId() });
+      mockConversationModel.findByIdAndUpdate.mockResolvedValue(newConversation);
+
+      await service.sendMessage(dto);
+
+      expect(mockConversationModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          studentId: expect.any(Types.ObjectId),
+          title: 'Nueva conversación',
+          isActive: true,
+        })
+      );
+      expect(mockConversationModel.findById).not.toHaveBeenCalled();
+    });
+
+    it('should use existing conversation if provided', async () => {
+      const dto: SendMessageDto = {
+        studentId,
+        message: 'Follow-up',
+        conversationId,
+      };
+      const existingConversation = {
+        _id: new Types.ObjectId(conversationId),
+        studentId: new Types.ObjectId(studentId),
+        title: 'Nueva conversación',
+        isActive: true,
+      };
+
+      mockConversationModel.findById.mockResolvedValue(existingConversation);
+      mockChatMessageModel.find.mockResolvedValue([]);
+      mockKnowledgeService.searchSimilar.mockResolvedValue([]);
+      mockAiService.generateResponse.mockResolvedValue({
+        content: 'Reply',
+        tokensUsed: 3,
+        model: 'gpt-4',
+      });
+      mockChatMessageModel.create.mockResolvedValue({ _id: new Types.ObjectId() });
+      mockConversationModel.findByIdAndUpdate.mockResolvedValue(existingConversation);
+
+      await service.sendMessage(dto);
+
+      expect(mockConversationModel.findById).toHaveBeenCalledWith(conversationId);
+      expect(mockConversationModel.create).not.toHaveBeenCalled();
+    });
+
+    it('should handle AI service errors gracefully', async () => {
+      const dto: SendMessageDto = { studentId, message: 'Hi' };
+      const conversation = {
+        _id: new Types.ObjectId(),
+        studentId: new Types.ObjectId(studentId),
+        title: 'Nueva conversación',
+        isActive: true,
+      };
+
+      mockConversationModel.create.mockResolvedValue(conversation);
+      mockChatMessageModel.find.mockResolvedValue([]);
+      mockKnowledgeService.searchSimilar.mockResolvedValue([]);
+      mockAiService.generateResponse.mockRejectedValue(new Error('OpenAI API error'));
+
+      await expect(service.sendMessage(dto)).rejects.toThrow('OpenAI API error');
+    });
   });
 
   describe('startNewConversation', () => {
