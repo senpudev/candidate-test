@@ -1,18 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
-import { ConfigService } from '@nestjs/config';
+import { AiService } from '../ai/ai.service';
 import { KnowledgeChunk, KnowledgeChunkDocument } from './schemas/knowledge-chunk.schema';
-
-interface SearchResult {
-  content: string;
-  courseId: string;
-  score: number;
-  metadata?: {
-    pageNumber?: number;
-    section?: string;
-  };
-}
+import { SearchResult } from '@candidate-test/shared';
 
 @Injectable()
 export class KnowledgeService {
@@ -20,30 +11,8 @@ export class KnowledgeService {
 
   constructor(
     @InjectModel(KnowledgeChunk.name) private knowledgeChunkModel: Model<KnowledgeChunkDocument>,
-    private readonly configService: ConfigService
-  ) {}
-
-  /**
-   * 📝 TODO: Implementar creacion de embeddings
-   *
-   * El candidato debe:
-   * 1. Usar OpenAI Embeddings API (text-embedding-3-small o text-embedding-3-large)
-   * 2. Recibir un texto y retornar el vector de embedding (array de números)
-   *
-   * Ejemplo de implementación:
-   * ```typescript
-   * const openai = new OpenAI({ apiKey: this.configService.get('OPENAI_API_KEY') });
-   * const response = await openai.embeddings.create({
-   *   model: 'text-embedding-3-small',
-   *   input: text,
-   * });
-   * return response.data[0].embedding; // number[]
-   * ```
-   */
-  async createEmbedding(text: string): Promise<number[]> {
-    // TODO: Implementar llamada a OpenAI Embeddings API
-    throw new Error('Not implemented');
-  }
+    private readonly aiService: AiService
+  ) { }
 
   /**
    * 📝 TODO: Implementar indexacion de contenido
@@ -51,14 +20,14 @@ export class KnowledgeService {
    * El candidato debe:
    * 1. Recibir el contenido de un curso (texto extraido del PDF)
    * 2. Dividir en chunks usando this.splitIntoChunks() (ya implementado)
-   * 3. Crear embedding para cada chunk usando this.createEmbedding()
+   * 3. Crear embedding para cada chunk usando this.aiService.createEmbedding()
    * 4. Guardar cada chunk en MongoDB con su embedding
    *
    * Flujo sugerido:
    * ```typescript
    * const chunks = this.splitIntoChunks(content, 1000);
    * for (const [index, chunkText] of chunks.entries()) {
-   *   const embedding = await this.createEmbedding(chunkText);
+   *   const embedding = await this.aiService.createEmbedding(chunkText);
    *   await this.knowledgeChunkModel.create({
    *     courseId: new Types.ObjectId(courseId),
    *     content: chunkText,
@@ -69,60 +38,123 @@ export class KnowledgeService {
    * }
    * return { chunksCreated: chunks.length };
    * ```
+   * 
+   * ✅ IMPLEMENTADO - Procesa texto, lo divide en chunks, crea embeddings y los guarda en MongoDB.
    */
   async indexCourseContent(
     courseId: string,
     content: string,
     sourceFile: string
   ): Promise<{ chunksCreated: number }> {
-    // TODO: Implementar
-    throw new Error('Not implemented');
+
+    if (!content || content.trim().length === 0) {
+      throw new Error('Content cannot be empty');
+    }
+
+    this.logger.log(`Indexing content for course ${courseId} from file ${sourceFile}`);
+
+    try {
+      const chunks = this.splitIntoChunks(content, 1000);
+      this.logger.debug(`Content split into ${chunks.length} chunks`);
+
+      // Secuential processing of chunks
+      for (const [index, chunkText] of chunks.entries()) {
+        const embedding = await this.aiService.createEmbedding(chunkText);
+
+        await this.knowledgeChunkModel.create({
+          courseId: new Types.ObjectId(courseId),
+          content: chunkText,
+          embedding,
+          sourceFile,
+          chunkIndex: index,
+        });
+
+        if ((index + 1) % 10 === 0) {
+          this.logger.debug(`Processed ${index + 1}/${chunks.length} chunks`);
+        }
+      }
+
+      this.logger.log(`Successfully indexed ${chunks.length} chunks for course ${courseId}`);
+      return { chunksCreated: chunks.length };
+    } catch (error) {
+      this.logger.error(
+        `Error indexing content for course ${courseId}: ${error.message}`,
+        error.stack
+      );
+      throw error;
+    }
+  }
+
+
+  //  Parse a PDF and return the extracted text.
+  async parsePdf(pdfBuffer: Buffer): Promise<string> {
+    let pdfParse: (buffer: Buffer) => Promise<{ text: string }>;
+    try {
+      pdfParse = require('pdf-parse');
+    } catch {
+      throw new Error('pdf-parse no está instalado. Ejecuta: npm install pdf-parse');
+    }
+
+    const pdfData = await pdfParse(pdfBuffer);
+    const text = pdfData?.text?.trim() ?? '';
+
+    if (!text) {
+      throw new Error('No se pudo extraer texto del PDF');
+    }
+
+    this.logger.debug(`PDF parsed: ${text.length} characters extracted`);
+    return text;
   }
 
   /**
-   * 📝 TODO: Implementar busqueda semantica EN MEMORIA
-   *
-   * IMPORTANTE: La búsqueda se hace en memoria, NO con MongoDB Atlas Vector Search.
-   *
-   * El candidato debe:
-   * 1. Crear embedding de la query usando this.createEmbedding()
-   * 2. Cargar chunks de MongoDB (filtrar por courseId si se especifica)
-   * 3. Calcular similitud coseno entre query y cada chunk usando this.cosineSimilarity()
-   * 4. Ordenar por score descendente y retornar top K resultados
-   *
-   * Flujo sugerido:
-   * ```typescript
-   * const { courseId, limit = 5, minScore = 0.7 } = options || {};
-   *
-   * // 1. Embedding de la query
-   * const queryEmbedding = await this.createEmbedding(query);
-   *
-   * // 2. Cargar chunks (filtrar por curso si aplica)
-   * const filter = courseId ? { courseId: new Types.ObjectId(courseId) } : {};
-   * const chunks = await this.knowledgeChunkModel.find(filter).lean();
-   *
-   * // 3. Calcular similitud con cada chunk
-   * const scored = chunks.map(chunk => ({
-   *   content: chunk.content,
-   *   courseId: chunk.courseId.toString(),
-   *   score: this.cosineSimilarity(queryEmbedding, chunk.embedding),
-   *   metadata: chunk.metadata,
-   * }));
-   *
-   * // 4. Filtrar por minScore, ordenar y limitar
-   * return scored
-   *   .filter(r => r.score >= minScore)
-   *   .sort((a, b) => b.score - a.score)
-   *   .slice(0, limit);
-   * ```
+   * ✅ IMPLEMENTADO - Busca chunks similares usando embeddings y similitud coseno en memoria.
    */
   async searchSimilar(query: string, options?: {
     courseId?: string;
     limit?: number;
     minScore?: number;
   }): Promise<SearchResult[]> {
-    // TODO: Implementar
-    throw new Error('Not implemented');
+
+    if (!query || query.trim().length === 0) {
+      throw new Error('Query cannot be empty');
+    }
+
+    // Default values
+    const { courseId, limit = 5, minScore = 0.7 } = options || {};
+
+    this.logger.debug(`Searching similar content for query: "${query.substring(0, 50)}..."`);
+
+    try {
+      // Convert user query to embedding 
+      const queryEmbedding = await this.aiService.createEmbedding(query);
+
+      // Load embedded chunks from MongoDB based on courseId (if specified)
+      const filter = courseId ? { courseId: new Types.ObjectId(courseId) } : {};
+      const chunks = await this.knowledgeChunkModel.find(filter).lean();
+
+      this.logger.debug(`Found ${chunks.length} chunks to compare`);
+
+      // Compare user query embedding against each chunk (cosine similarity)
+      const scored = chunks.map((chunk) => ({
+        content: chunk.content,
+        courseId: chunk.courseId.toString(),
+        score: this.cosineSimilarity(queryEmbedding, chunk.embedding),
+        chunkIndex: chunk.chunkIndex,
+        metadata: chunk.metadata,
+      }));
+
+      // Return results based on minScore (+70% similarity score)
+      const results = scored
+        .filter((r) => r.score >= minScore)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, limit);
+
+      this.logger.debug(`Found ${results.length} similar chunks (minScore: ${minScore})`);
+      return results;
+    } catch (error) {
+      this.logger.error(`Error searching similar content: ${error.message}`, error.stack);
+      throw error;
+    }
   }
 
   /**
