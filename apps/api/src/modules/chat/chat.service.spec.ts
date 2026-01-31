@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Logger } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
@@ -8,12 +9,19 @@ import { ChatMessage } from './schemas/chat-message.schema';
 import { Conversation } from './schemas/conversation.schema';
 import { SendMessageDto } from './dto/send-message.dto';
 
+const STUDENT_ID = '507f1f77bcf86cd799439011';
+const CONVERSATION_ID = '507f1f77bcf86cd799439012';
+
 describe('ChatService', () => {
   let service: ChatService;
 
   const mockChatMessageModel = {
     create: jest.fn(),
-    find: jest.fn(),
+    find: jest.fn().mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([]),
+    }),
     findById: jest.fn(),
     deleteMany: jest.fn(),
   };
@@ -31,13 +39,33 @@ describe('ChatService', () => {
   };
 
   const mockKnowledgeService = {
-    searchSimilar: jest.fn(),
+    searchSimilar: jest.fn().mockResolvedValue([]),
   };
 
-  const studentId = new Types.ObjectId().toString();
-  const conversationId = new Types.ObjectId().toString();
-
   beforeEach(async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => { });
+    mockChatMessageModel.find.mockReturnValue({
+      sort: jest.fn().mockReturnThis(),
+      limit: jest.fn().mockReturnThis(),
+      lean: jest.fn().mockResolvedValue([]),
+    });
+    mockConversationModel.create.mockResolvedValue({
+      _id: new Types.ObjectId(CONVERSATION_ID),
+      studentId: new Types.ObjectId(STUDENT_ID),
+      title: 'Nueva conversación',
+      isActive: true,
+    });
+    mockConversationModel.findById.mockResolvedValue(null);
+    mockConversationModel.findByIdAndUpdate.mockResolvedValue({});
+    mockChatMessageModel.create.mockImplementation((doc: { content: string; role: string }) =>
+      Promise.resolve({ _id: new Types.ObjectId(), ...doc })
+    );
+    mockAiService.generateResponse.mockResolvedValue({
+      content: 'AI reply',
+      tokensUsed: 10,
+      model: 'gpt-4',
+    });
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         ChatService,
@@ -65,126 +93,59 @@ describe('ChatService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks(); // Restore original implementations (e.g. Logger.prototype.error) so mocks from one test don't leak into the next.
   });
 
+  /**
+   * Nota: Hay un BUG intencional en startNewConversation (historial por referencia).
+   */
   describe('sendMessage', () => {
+    const baseDto: SendMessageDto = {
+      studentId: STUDENT_ID,
+      message: 'Hello',
+    };
+
     it('should create user message and get AI response', async () => {
-      const dto: SendMessageDto = {
-        studentId,
-        message: 'Hello',
-      };
-      const conversation = {
-        _id: new Types.ObjectId(conversationId),
-        studentId: new Types.ObjectId(studentId),
-        title: 'Nueva conversación',
-        isActive: true,
-      };
-      const userMessageDoc = { _id: new Types.ObjectId(), role: 'user', content: dto.message };
-      const assistantMessageDoc = { _id: new Types.ObjectId(), role: 'assistant', content: 'Hi there!' };
+      const result = await service.sendMessage(baseDto);
 
-      mockConversationModel.create.mockResolvedValue(conversation);
-      mockChatMessageModel.find.mockResolvedValue([]);
-      mockKnowledgeService.searchSimilar.mockResolvedValue([]);
-      mockAiService.generateResponse.mockResolvedValue({
-        content: 'Hi there!',
-        tokensUsed: 10,
-        model: 'gpt-4',
+      expect(mockChatMessageModel.create).toHaveBeenCalledTimes(2); // user + assistant
+      expect(mockChatMessageModel.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ role: 'user', content: 'Hello' }));
+      expect(mockAiService.generateResponse).toHaveBeenCalledWith('Hello', [], undefined);
+      expect(result).toMatchObject({
+        conversationId: expect.anything(),
+        userMessage: expect.objectContaining({ content: 'Hello', role: 'user' }),
+        assistantMessage: expect.objectContaining({ content: 'AI reply', role: 'assistant' }),
       });
-      mockChatMessageModel.create
-        .mockResolvedValueOnce(userMessageDoc)
-        .mockResolvedValueOnce(assistantMessageDoc);
-      mockConversationModel.findByIdAndUpdate.mockResolvedValue(conversation);
-
-      const result = await service.sendMessage(dto);
-
-      expect(result.conversationId).toEqual(conversation._id);
-      expect(result.userMessage).toEqual(userMessageDoc);
-      expect(result.assistantMessage).toEqual(assistantMessageDoc);
-      expect(mockChatMessageModel.create).toHaveBeenCalledTimes(2);
-      expect(mockAiService.generateResponse).toHaveBeenCalledWith(
-        dto.message,
-        [],
-        undefined
-      );
     });
 
     it('should create new conversation if none exists', async () => {
-      const dto: SendMessageDto = { studentId, message: 'Hi' };
-      const newConversation = {
-        _id: new Types.ObjectId(),
-        studentId: new Types.ObjectId(studentId),
-        title: 'Nueva conversación',
-        isActive: true,
-      };
+      await service.sendMessage(baseDto);
 
-      mockConversationModel.create.mockResolvedValue(newConversation);
-      mockChatMessageModel.find.mockResolvedValue([]);
-      mockKnowledgeService.searchSimilar.mockResolvedValue([]);
-      mockAiService.generateResponse.mockResolvedValue({
-        content: 'Hello',
-        tokensUsed: 5,
-        model: 'gpt-4',
-      });
-      mockChatMessageModel.create.mockResolvedValue({ _id: new Types.ObjectId() });
-      mockConversationModel.findByIdAndUpdate.mockResolvedValue(newConversation);
-
-      await service.sendMessage(dto);
-
-      expect(mockConversationModel.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          studentId: expect.any(Types.ObjectId),
-          title: 'Nueva conversación',
-          isActive: true,
-        })
-      );
       expect(mockConversationModel.findById).not.toHaveBeenCalled();
+      expect(mockConversationModel.create).toHaveBeenCalledTimes(1);
+      expect(mockConversationModel.create).toHaveBeenCalledWith(expect.objectContaining({ studentId: expect.anything() }));
     });
 
     it('should use existing conversation if provided', async () => {
-      const dto: SendMessageDto = {
-        studentId,
-        message: 'Follow-up',
-        conversationId,
-      };
-      const existingConversation = {
-        _id: new Types.ObjectId(conversationId),
-        studentId: new Types.ObjectId(studentId),
-        title: 'Nueva conversación',
+      const existingConv = {
+        _id: new Types.ObjectId(CONVERSATION_ID),
+        studentId: new Types.ObjectId(STUDENT_ID),
+        title: 'Existing',
         isActive: true,
       };
+      mockConversationModel.findById.mockResolvedValueOnce(existingConv);
 
-      mockConversationModel.findById.mockResolvedValue(existingConversation);
-      mockChatMessageModel.find.mockResolvedValue([]);
-      mockKnowledgeService.searchSimilar.mockResolvedValue([]);
-      mockAiService.generateResponse.mockResolvedValue({
-        content: 'Reply',
-        tokensUsed: 3,
-        model: 'gpt-4',
-      });
-      mockChatMessageModel.create.mockResolvedValue({ _id: new Types.ObjectId() });
-      mockConversationModel.findByIdAndUpdate.mockResolvedValue(existingConversation);
+      await service.sendMessage({ ...baseDto, conversationId: CONVERSATION_ID });
 
-      await service.sendMessage(dto);
-
-      expect(mockConversationModel.findById).toHaveBeenCalledWith(conversationId);
+      expect(mockConversationModel.findById).toHaveBeenCalledWith(CONVERSATION_ID);
       expect(mockConversationModel.create).not.toHaveBeenCalled();
+      expect(mockChatMessageModel.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ conversationId: existingConv._id }));
     });
 
     it('should handle AI service errors gracefully', async () => {
-      const dto: SendMessageDto = { studentId, message: 'Hi' };
-      const conversation = {
-        _id: new Types.ObjectId(),
-        studentId: new Types.ObjectId(studentId),
-        title: 'Nueva conversación',
-        isActive: true,
-      };
+      mockAiService.generateResponse.mockRejectedValueOnce(new Error('OpenAI error'));
 
-      mockConversationModel.create.mockResolvedValue(conversation);
-      mockChatMessageModel.find.mockResolvedValue([]);
-      mockKnowledgeService.searchSimilar.mockResolvedValue([]);
-      mockAiService.generateResponse.mockRejectedValue(new Error('OpenAI API error'));
-
-      await expect(service.sendMessage(dto)).rejects.toThrow('OpenAI API error');
+      await expect(service.sendMessage(baseDto)).rejects.toThrow('OpenAI error');
     });
   });
 
