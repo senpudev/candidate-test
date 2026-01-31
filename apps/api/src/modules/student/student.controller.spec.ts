@@ -1,7 +1,9 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { NotFoundException } from '@nestjs/common';
+import { DetailedStats } from '../../../../../libs/shared/src';
 import { StudentController } from './student.controller';
 import { StudentService } from './student.service';
-import { NotFoundException } from '@nestjs/common';
+import { UpdatePreferencesDto } from './dto/update-preferences.dto';
 
 describe('StudentController', () => {
   let controller: StudentController;
@@ -10,9 +12,12 @@ describe('StudentController', () => {
   const mockStudentService = {
     getDashboard: jest.fn(),
     getCoursesWithProgress: jest.fn(),
+    findById: jest.fn(),
     getDetailedStats: jest.fn(),
     updatePreferences: jest.fn(),
   };
+
+  const studentId = '507f1f77bcf86cd799439011';
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -97,24 +102,93 @@ describe('StudentController', () => {
       const result = await controller.getCourses('507f1f77bcf86cd799439011');
 
       expect(result).toHaveLength(2);
-      expect(result[0].progress.progressPercentage).toBe(70);
+      expect(result?.[0]?.progress?.progressPercentage).toBe(70);
     });
   });
 
-  /**
-   * 📝 TODO: El candidato debe implementar estos tests
-   */
   describe('getStats', () => {
-    it.todo('should return detailed statistics for student');
-    it.todo('should calculate study streak correctly');
-    it.todo('should aggregate time by category');
-    it.todo('should handle student with no courses');
+    it('should return detailed statistics for student', async () => {
+      const mockStats: DetailedStats = {
+        totalStudyHours: 10.5,
+        completedVsInProgress: { completed: 2, inProgress: 3 },
+        studyStreak: 5,
+        weeklyAverageProgress: 65.2,
+        timeByCategory: { Frontend: 300, Backend: 200 },
+      };
+      mockStudentService.findById.mockResolvedValue({ _id: studentId });
+      mockStudentService.getDetailedStats.mockResolvedValue(mockStats);
+
+      const result = await controller.getStats(studentId);
+
+      expect(result).toEqual(mockStats);
+      expect(service.findById).toHaveBeenCalledWith(studentId);
+      expect(service.getDetailedStats).toHaveBeenCalledWith(studentId);
+    });
+
+    it('should return stats with studyStreak and timeByCategory', async () => {
+      const mockStats: DetailedStats = {
+        totalStudyHours: 0,
+        completedVsInProgress: { completed: 0, inProgress: 0 },
+        studyStreak: 0,
+        weeklyAverageProgress: 0,
+        timeByCategory: {},
+      };
+      mockStudentService.findById.mockResolvedValue({ _id: studentId });
+      mockStudentService.getDetailedStats.mockResolvedValue(mockStats);
+
+      const result = await controller.getStats(studentId);
+
+      expect(result.studyStreak).toBe(0);
+      expect(result.timeByCategory).toEqual({});
+    });
+
+    it('should throw NotFoundException when student not found', async () => {
+      mockStudentService.findById.mockResolvedValue(null);
+
+      await expect(controller.getStats('invalid-id')).rejects.toThrow(
+        NotFoundException
+      );
+      expect(service.getDetailedStats).not.toHaveBeenCalled();
+    });
   });
 
   describe('updatePreferences', () => {
-    it.todo('should update student preferences');
-    it.todo('should merge partial preferences update');
-    it.todo('should validate theme value');
-    it.todo('should throw NotFoundException for invalid student');
+    it('should update student preferences and return updated student', async () => {
+      const dto: UpdatePreferencesDto = { theme: 'dark' };
+      const updatedStudent = {
+        _id: studentId,
+        name: 'María',
+        preferences: { theme: 'dark', language: 'es', notifications: true },
+      };
+      mockStudentService.updatePreferences.mockResolvedValue(updatedStudent);
+
+      const result = await controller.updatePreferences(studentId, dto);
+
+      expect(result).toEqual(updatedStudent);
+      expect(service.updatePreferences).toHaveBeenCalledWith(studentId, dto);
+    });
+
+    it('should merge partial preferences (e.g. only language)', async () => {
+      const dto: UpdatePreferencesDto = { language: 'en' };
+      const updatedStudent = {
+        _id: studentId,
+        preferences: { theme: 'light', language: 'en', notifications: true },
+      };
+      mockStudentService.updatePreferences.mockResolvedValue(updatedStudent);
+
+      const result = await controller.updatePreferences(studentId, dto);
+
+      expect(result.preferences.language).toBe('en');
+      expect(service.updatePreferences).toHaveBeenCalledWith(studentId, dto);
+    });
+
+    it('should throw NotFoundException when student does not exist', async () => {
+      const dto: UpdatePreferencesDto = { theme: 'dark' };
+      mockStudentService.updatePreferences.mockResolvedValue(null);
+
+      await expect(
+        controller.updatePreferences('invalid-id', dto)
+      ).rejects.toThrow(NotFoundException);
+    });
   });
 });
