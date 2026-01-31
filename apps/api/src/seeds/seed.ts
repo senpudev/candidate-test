@@ -69,11 +69,24 @@ const ChatMessageSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// 
+const KnowledgeChunkSchema = new mongoose.Schema(
+  {
+    courseId: { type: mongoose.Schema.Types.ObjectId, ref: 'Course' },
+    content: String,
+    embedding: [Number],
+    sourceFile: String,
+    chunkIndex: Number,
+  },
+  { timestamps: true }
+);
+
 const Student = mongoose.model('Student', StudentSchema);
 const Course = mongoose.model('Course', CourseSchema);
 const Progress = mongoose.model('Progress', ProgressSchema);
 const Conversation = mongoose.model('Conversation', ConversationSchema);
 const ChatMessage = mongoose.model('ChatMessage', ChatMessageSchema);
+const KnowledgeChunk = mongoose.model('KnowledgeChunk', KnowledgeChunkSchema);
 
 async function seed() {
   const mongoUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/candidate-test';
@@ -83,11 +96,12 @@ async function seed() {
 
   console.log('[DB] Limpiando datos existentes...');
   await Promise.all([
-    Student.deleteMany({}),
-    Course.deleteMany({}),
-    Progress.deleteMany({}),
-    Conversation.deleteMany({}),
     ChatMessage.deleteMany({}),
+    Conversation.deleteMany({}),
+    Progress.deleteMany({}),
+    KnowledgeChunk.deleteMany({}),
+    Course.deleteMany({}),
+    Student.deleteMany({}),
   ]);
 
   console.log('[SEED] Creando estudiante de prueba...');
@@ -287,6 +301,7 @@ Este patrón hace que la lógica sea más predecible y fácil de testear. ¿Tien
   console.log(`   - ${courses.length} cursos`);
   console.log(`   - 5 registros de progreso`);
   console.log(`   - 1 conversacion con 4 mensajes`);
+  console.log(`   - Chunks RAG eliminados (sube PDFs de nuevo si quieres RAG)`);
   console.log('');
   console.log('[INFO] Credenciales de prueba:');
   console.log('   Email: maria@test.com');
