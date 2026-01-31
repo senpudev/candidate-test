@@ -228,7 +228,21 @@ export class StudentService {
 
    // Implementar actualización de preferencias
   async updatePreferences(studentId: string, dto: UpdatePreferencesDto) {
+    const update: Record<string, unknown> = {};
+    if (dto.theme !== undefined) update['preferences.theme'] = dto.theme;
+    if (dto.language !== undefined) update['preferences.language'] = dto.language;
+    if (dto.notifications !== undefined) update['preferences.notifications'] = dto.notifications;
 
+    if (Object.keys(update).length === 0) { // Nothing to update
+      return this.studentModel.findById(studentId).lean();
+    }
+
+    // Update and return updated student using { new: true } (mongoose option)
+    const updated = await this.studentModel
+      .findByIdAndUpdate(studentId, { $set: update }, { new: true })
+      .lean();
+
+    return updated;
   }
 
   /**
