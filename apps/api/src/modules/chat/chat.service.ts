@@ -4,6 +4,7 @@ import { Model, Types } from 'mongoose';
 import { ChatMessage, ChatMessageDocument } from './schemas/chat-message.schema';
 import { Conversation, ConversationDocument } from './schemas/conversation.schema';
 import { AiService } from '../ai/ai.service';
+import { KnowledgeService } from '../knowledge/knowledge.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
 interface MessageHistory {
@@ -21,59 +22,92 @@ export class ChatService {
   constructor(
     @InjectModel(ChatMessage.name) private chatMessageModel: Model<ChatMessageDocument>,
     @InjectModel(Conversation.name) private conversationModel: Model<ConversationDocument>,
-    private readonly aiService: AiService
-  ) {}
+    private readonly aiService: AiService,
+    private readonly knowledgeService: KnowledgeService
+  ) { }
 
   /**
-   * ✅ PARCIALMENTE IMPLEMENTADO - Enviar mensaje y obtener respuesta
+   * (⏳) PARTIALLY IMPLEMENTED 
    *
    * El candidato debe completar:
-   * - Integración con OpenAI para obtener respuesta real
+   * - Integración con OpenAI para obtener respuesta real ✅
    * - Implementar streaming de la respuesta
-   * - Manejo de errores de la API de OpenAI
+   * - Manejo de errores de la API de OpenAI ✅
+   * - Integrar RAG en sendMessage: buscar contexto → llamar a generateResponse(..., relevantContext) ✅
    */
   async sendMessage(dto: SendMessageDto) {
     const { studentId, message, conversationId } = dto;
 
-    // Obtener o crear conversación
-    let conversation = conversationId
-      ? await this.conversationModel.findById(conversationId)
-      : await this.createConversation(studentId);
+    const conversation =
+      (conversationId ? await this.conversationModel.findById(conversationId) : null)
+      ?? (await this.createConversation(studentId));
 
-    if (!conversation) {
-      conversation = await this.createConversation(studentId);
-    }
+    // Get History
+    const history = await this.getConversationHistory(conversation._id.toString());
 
-    // Guardar mensaje del usuario
+    // Save user message
     const userMessage = await this.chatMessageModel.create({
       conversationId: conversation._id,
       role: 'user',
       content: message,
     });
 
-    // Obtener historial para contexto
-    const history = await this.getConversationHistory(conversation._id.toString());
+    // Search Relevant chunks based on user message
+    let relevantContext: string[] = [];
+    let chunksUsed: number[] = [];
+    try {
+      const searchResults = await this.knowledgeService.searchSimilar(message, {
+        limit: 3, // Top 3 relevant chunks
+        minScore: 0.5, // Similarity threshold
+      });
+      relevantContext = searchResults.map((result) => result.content);
+      // Get index chunks used 
+      chunksUsed = searchResults
+        .map((r) => (typeof r.chunkIndex === 'number' ? r.chunkIndex : undefined))
+        .filter((idx): idx is number => idx !== undefined);
+      this.logger.debug(
+        `Found ${relevantContext.length} relevant context chunks for RAG (chunk indices: ${chunksUsed.join(', ') || 'none'})`
+      );
+    } catch (error) {
+      this.logger.warn(`RAG search failed: ${error.message}`);
+    }
 
-    // TODO: El candidato debe implementar la llamada real a OpenAI
-    // Por ahora retornamos una respuesta placeholder
-    const aiResponse = await this.aiService.generateResponse(message, history);
+    const aiResponse = await this.aiService.generateResponse(
+      message,
+      history,
+      relevantContext.length > 0 ? relevantContext : undefined
+    );
 
-    // Guardar respuesta del asistente
-    const assistantMessage = await this.chatMessageModel.create({
-      conversationId: conversation._id,
-      role: 'assistant',
-      content: aiResponse.content,
-      metadata: {
-        tokensUsed: aiResponse.tokensUsed,
-        model: aiResponse.model,
-      },
-    });
+    const metadata: { tokensUsed?: number; model?: string; chunksUsed?: number[] } = {
+      tokensUsed: aiResponse.tokensUsed,
+      model: aiResponse.model,
+    };
+    if (chunksUsed.length > 0) {
+      metadata.chunksUsed = chunksUsed;
+    }
 
-    // Actualizar conversación
-    await this.conversationModel.findByIdAndUpdate(conversation._id, {
-      lastMessageAt: new Date(),
-      $inc: { messageCount: 2 },
-    });
+    // Save assistant message and update conversation
+    const [assistantMessage] = await Promise.all([
+      this.chatMessageModel.create({
+        conversationId: conversation._id,
+        role: 'assistant',
+        content: aiResponse.content,
+        metadata,
+      }),
+      this.conversationModel.findByIdAndUpdate(conversation._id, {
+        lastMessageAt: new Date(),
+        $inc: { messageCount: 2 },
+      }),
+    ]);
+
+    // Update cache for next message
+    const historyForNextTime: MessageHistory[] = [
+      ...history,
+      { role: 'user', content: message },
+      { role: 'assistant', content: aiResponse.content },
+    ];
+    const maxCachedMessages = 20; // same limit as getConversationHistory
+    this.conversationCache.set(conversation._id.toString(), historyForNextTime.slice(-maxCachedMessages));
 
     return {
       conversationId: conversation._id,
