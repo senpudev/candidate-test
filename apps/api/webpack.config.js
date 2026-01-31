@@ -5,6 +5,7 @@ module.exports = {
   output: {
     path: join(__dirname, '../../dist/apps/api'),
   },
+  externals: ['pdf-parse'], // Runtime (not bundled)
   plugins: [
     new NxAppWebpackPlugin({
       target: 'node',
