@@ -13,10 +13,15 @@ interface AiResponse {
   model?: string;
 }
 
+type PlaceholderReason = 'no-config' | 'rate-limit' | 'api-error';
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
   private readonly openai?: OpenAI;
+
+  // Timestamps for rate limiting, shared by all requests to this service instance.
+  private requestTimestamps: number[] = [];
 
   /**
    * System prompt base para el asistente de estudiantes
@@ -55,7 +60,7 @@ Reglas:
    * 1. ✅ Implementar la llamada real a OpenAI
    * 2. ✅ Manejar errores de la API
    * 3. ⚠️ Implementar retry logic si es necesario (no implementado aún)
-   * 4. ⚠️ Considerar rate limiting (no implementado aún)
+   * 4. ✅ Considerar rate limiting
    */
   async generateResponse(
     userMessage: string,
@@ -69,11 +74,17 @@ Reglas:
 
     if (!this.openai) {
       this.logger.warn('OpenAI client not initialized, returning placeholder response');
-      return this.generatePlaceholderResponse(userMessage);
+      return this.generatePlaceholderResponse('no-config');
     }
 
+    if (this.isRateLimited()) {
+      this.logger.warn('OpenAI rate limit reached, returning placeholder response');
+      return this.generatePlaceholderResponse('rate-limit');
+    }
+    this.recordRequest();
+
     try {
-      
+
       let systemPrompt = this.baseSystemPrompt;
       if (useRAG) {
         // Enrich system prompt with RAG context if available (relevantContext)
@@ -113,7 +124,7 @@ Reglas:
       };
     } catch (error) {
       this.logger.error(`Error calling OpenAI API: ${error.message}`, error.stack);
-      return this.generatePlaceholderResponse(userMessage);
+      return this.generatePlaceholderResponse('api-error');
     }
   }
 
@@ -140,7 +151,7 @@ Reglas:
       throw error;
     }
   }
-  
+
   /**
    * 📝 TODO: Implementar streaming de respuestas
    *
@@ -153,7 +164,7 @@ Reglas:
   ): AsyncGenerator<string> {
     // TODO: Implementar streaming real con OpenAI
     // Placeholder actual - simula streaming
-    const placeholder = await this.generatePlaceholderResponse(userMessage);
+    const placeholder = this.generatePlaceholderResponse('no-config');
     const words = placeholder.content.split(' ');
 
     for (const word of words) {
@@ -179,21 +190,21 @@ Reglas:
     return this.baseSystemPrompt;
   }
 
-  /**
-   * Genera una respuesta placeholder para desarrollo
-   */
-  private generatePlaceholderResponse(userMessage: string): AiResponse {
-    const responses = [
-      '¡Hola! Soy tu asistente de estudios. Veo que tienes una pregunta interesante. Para ayudarte mejor, ¿podrías darme más detalles sobre el tema específico del curso en el que necesitas ayuda?',
-      'Entiendo tu duda. Este es un tema importante que muchos estudiantes encuentran desafiante. Te sugiero que revisemos los conceptos paso a paso. ¿Por dónde te gustaría empezar?',
-      '¡Excelente pregunta! Esto demuestra que estás pensando críticamente sobre el material. Déjame darte una explicación que te ayude a entender mejor el concepto.',
-      'Gracias por compartir tu pregunta. Para darte la mejor ayuda posible, necesito que OpenAI esté configurado. Por ahora, te recomiendo revisar el material del curso y volver con preguntas específicas.',
-    ];
+  // Generate a placeholder response based on the reason (rate limit, API error, no config).
+  private generatePlaceholderResponse(reason: PlaceholderReason = 'no-config'): AiResponse {
+    const messages: Record<PlaceholderReason, string> = {
+      'rate-limit':
+        'Vaya, parece que estamos ultra atareados. Prueba de nuevo en un par de minutos.',
+      'api-error':
+        'Algo ha fallado por aquí. Inténtalo en un momento; tu pregunta no se ha perdido.',
+      'no-config':
+        'Gracias por tu mensaje. Por ahora el asistente no está disponible; revisa el material del curso y vuelve a intentarlo más tarde.',
+    };
 
-    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+    const content = messages[reason];
 
     return {
-      content: `[RESPUESTA PLACEHOLDER - Implementar OpenAI]\n\n${randomResponse}`,
+      content,
       tokensUsed: 0,
       model: 'placeholder',
     };
@@ -204,5 +215,27 @@ Reglas:
    */
   isConfigured(): boolean {
     return !!this.configService.get<string>('OPENAI_API_KEY');
+  }
+
+  // Get the rate limit Config
+  private getRateLimitConfig(): { max: number; windowMs: number } {
+    const maxRaw = this.configService.get<string | number>('OPENAI_RATE_LIMIT_MAX');
+    const windowRaw = this.configService.get<string | number>('OPENAI_RATE_LIMIT_WINDOW_MS');
+    const max = maxRaw != null ? Number(maxRaw) : 30;
+    const windowMs = windowRaw != null ? Number(windowRaw) : 60_000;
+    return { max: Math.max(1, max), windowMs: Math.max(1000, windowMs) };
+  }
+
+  // Check if the rate limit has been reached.
+  private isRateLimited(): boolean {
+    const { max, windowMs } = this.getRateLimitConfig();
+    const now = Date.now();
+    this.requestTimestamps = this.requestTimestamps.filter((t) => now - t < windowMs);
+    return this.requestTimestamps.length >= max;
+  }
+
+  // Record the request timestamp for rate limiting.
+  private recordRequest(): void {
+    this.requestTimestamps.push(Date.now());
   }
 }
