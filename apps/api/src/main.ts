@@ -31,6 +31,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addTag('students')
     .addTag('chat')
+    .addTag('knowledge')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
