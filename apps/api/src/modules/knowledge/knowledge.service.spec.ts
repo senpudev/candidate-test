@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { Logger } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { ConfigService } from '@nestjs/config';
 import { KnowledgeService } from './knowledge.service';
@@ -20,6 +21,7 @@ describe('KnowledgeService', () => {
   };
 
   beforeEach(async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         KnowledgeService,
@@ -39,6 +41,7 @@ describe('KnowledgeService', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('cosineSimilarity', () => {

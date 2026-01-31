@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { NotFoundException } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { DetailedStats } from '../../../../../libs/shared/src';
 import { StudentController } from './student.controller';
 import { StudentService } from './student.service';
@@ -20,6 +20,7 @@ describe('StudentController', () => {
   const studentId = '507f1f77bcf86cd799439011';
 
   beforeEach(async () => {
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {});
     const module: TestingModule = await Test.createTestingModule({
       controllers: [StudentController],
       providers: [
@@ -36,6 +37,7 @@ describe('StudentController', () => {
 
   afterEach(() => {
     jest.clearAllMocks();
+    jest.restoreAllMocks();
   });
 
   describe('getDashboard', () => {
