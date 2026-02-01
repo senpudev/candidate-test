@@ -93,12 +93,19 @@ export function Chat({ studentId }: ChatProps) {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isTyping]);
 
-  // TODO: Implementar nueva conversación
-  const handleNewConversation = async () => {
-    // setMessages([]);
-    // setConversationId(null);
-    // TODO: Llamar a api.startNewConversation(studentId)
-    alert('TODO: Implementar nueva conversación');
+  const startNewConversationMutation = useMutation({
+    mutationFn: () => api.startNewConversation(studentId),
+    onSuccess: (data) => {
+      setConversationId(data._id);
+      setMessages([]);
+    },
+    onError: (error) => {
+      console.error('Error starting new conversation:', error);
+    },
+  });
+
+  const handleNewConversation = () => {
+    startNewConversationMutation.mutate();
   };
 
   return (
@@ -112,7 +119,10 @@ export function Chat({ studentId }: ChatProps) {
           </div>
         </HeaderTitle>
 
-        <NewChatButton onClick={handleNewConversation}>
+        <NewChatButton
+          onClick={handleNewConversation}
+          disabled={startNewConversationMutation.isPending}
+        >
           + Nueva conversación
         </NewChatButton>
       </ChatHeader>
