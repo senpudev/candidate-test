@@ -43,25 +43,25 @@ export class ChatController {
     return this.chatService.startNewConversation(studentId, initialContext);
   }
 
-  /**
-   * 📝 TODO: Implementar obtención del historial
-   *
-   * El candidato debe:
-   * - Implementar paginación con query params (page, limit)
-   * - Filtrar por conversationId si se proporciona
-   * - Retornar mensajes ordenados cronológicamente
-   */
-  @Get('history/:studentId')
-  @ApiOperation({ summary: 'Obtener historial de chat del estudiante' })
+  @Get('conversations/:studentId')
+  @ApiOperation({ summary: 'Listar conversaciones del estudiante' })
   @ApiParam({ name: 'studentId', description: 'ID del estudiante' })
-  @ApiQuery({ name: 'conversationId', required: false, description: 'ID de conversación específica' })
+  @ApiResponse({ status: 200, description: 'Lista de conversaciones con id, title, lastMessageAt, messageCount' })
+  async getConversations(@Param('studentId') studentId: string) {
+    return this.chatService.getHistory(studentId);
+  }
+
+  @Get('conversations/:studentId/:conversationId/messages')
+  @ApiOperation({ summary: 'Obtener mensajes de una conversación (paginado)' })
+  @ApiParam({ name: 'studentId', description: 'ID del estudiante' })
+  @ApiParam({ name: 'conversationId', description: 'ID de la conversación' })
   @ApiQuery({ name: 'page', required: false, description: 'Número de página' })
   @ApiQuery({ name: 'limit', required: false, description: 'Mensajes por página' })
   @ApiQuery({ name: 'fromEnd', required: false, description: 'Si true, página 1 = últimos N mensajes' })
-  @ApiResponse({ status: 200, description: 'Historial de mensajes' })
-  async getHistory(
+  @ApiResponse({ status: 200, description: 'Mensajes con total, page, limit' })
+  async getConversationMessages(
     @Param('studentId') studentId: string,
-    @Query('conversationId') conversationId?: string,
+    @Param('conversationId') conversationId: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('fromEnd') fromEnd?: string
@@ -76,19 +76,14 @@ export class ChatController {
   }
 
   /**
-   * 📝 TODO: Implementar eliminación del historial
-   *
-   * El candidato debe:
-   * - Validar que el studentId corresponda a la conversación
-   * - Eliminar mensajes y opcionalmente la conversación
-   * - Retornar confirmación de eliminación
+   * Eliminar una conversación y sus mensajes.
    */
-  @Delete('history/:studentId/:conversationId')
+  @Delete('conversations/:studentId/:conversationId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  @ApiOperation({ summary: 'Eliminar historial de una conversación' })
+  @ApiOperation({ summary: 'Eliminar conversación y sus mensajes' })
   @ApiParam({ name: 'studentId', description: 'ID del estudiante' })
   @ApiParam({ name: 'conversationId', description: 'ID de la conversación' })
-  @ApiResponse({ status: 204, description: 'Historial eliminado' })
+  @ApiResponse({ status: 204, description: 'Conversación eliminada' })
   @ApiResponse({ status: 404, description: 'Conversación no encontrada' })
   async deleteHistory(
     @Param('studentId') studentId: string,

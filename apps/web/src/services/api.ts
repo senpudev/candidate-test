@@ -60,7 +60,7 @@ export const api = {
     return response.data;
   },
 
-  // Without conversationId: list of conversations. With conversationId: paginated messages. If fromEnd=true, page 1 = last N messages (always up to limit), page 2 = next N older messages.
+  // Sin conversationId: lista de conversaciones (GET /conversations/:studentId). Con conversationId: mensajes paginados (GET /conversations/:studentId/:conversationId/messages). fromEnd=true → página 1 = últimos N mensajes.
   getChatHistory: async (
     studentId: string,
     conversationId?: string,
@@ -68,17 +68,25 @@ export const api = {
     limit?: number,
     fromEnd?: boolean
   ) => {
+    if (!conversationId) {
+      const response = await apiClient.get(`/chat/conversations/${studentId}`);
+      return response.data;
+    }
     const params: Record<string, string | number | boolean> = {};
-    if (conversationId) params.conversationId = conversationId;
     if (page != null) params.page = page;
     if (limit != null) params.limit = limit;
     if (fromEnd != null) params.fromEnd = fromEnd;
-    const response = await apiClient.get(`/chat/history/${studentId}`, { params });
+    const response = await apiClient.get(
+      `/chat/conversations/${studentId}/${conversationId}/messages`,
+      { params }
+    );
     return response.data;
   },
 
   deleteChatHistory: async (studentId: string, conversationId: string) => {
-    const response = await apiClient.delete(`/chat/history/${studentId}/${conversationId}`);
+    const response = await apiClient.delete(
+      `/chat/conversations/${studentId}/${conversationId}`
+    );
     return response.data;
   },
 
