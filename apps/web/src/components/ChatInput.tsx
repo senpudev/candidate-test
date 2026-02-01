@@ -1,4 +1,4 @@
-import { useState, KeyboardEvent } from 'react';
+import { useState, KeyboardEvent, forwardRef } from 'react';
 import styled from 'styled-components';
 
 interface ChatInputProps {
@@ -22,46 +22,48 @@ interface ChatInputProps {
  * - Historial de mensajes con flechas arriba/abajo
  * - Indicador de caracteres restantes
  */
-export function ChatInput({ onSend, disabled = false, placeholder = 'Escribe tu mensaje...' }: ChatInputProps) {
-  const [message, setMessage] = useState('');
+export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
+  function ChatInput({ onSend, disabled = false, placeholder = 'Escribe tu mensaje...' }, ref) {
+    const [message, setMessage] = useState('');
 
-  // TODO: Implementar manejo de teclas (Enter para enviar, Shift+Enter para nueva línea)
-  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
-  };
+    const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      }
+    };
 
-  const handleSend = () => {
-    const trimmed = message.trim();
-    if (trimmed && !disabled) {
-      onSend(trimmed);
-      setMessage('');
-    }
-  };
+    const handleSend = () => {
+      const trimmed = message.trim();
+      if (trimmed && !disabled) {
+        onSend(trimmed);
+        setMessage('');
+      }
+    };
 
-  return (
-    <Container>
-      <InputWrapper>
-        <TextArea
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          onKeyDown={handleKeyDown}
-          placeholder={placeholder}
-          disabled={disabled}
-          rows={1}
-        />
-        {/* TODO: Añadir contador de caracteres */}
-      </InputWrapper>
+    return (
+      <Container>
+        <InputWrapper>
+          <TextArea
+            ref={ref}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder={placeholder}
+            disabled={disabled}
+            rows={1}
+          />
+          {/* TODO: Añadir contador de caracteres */}
+        </InputWrapper>
 
-      <SendButton onClick={handleSend} disabled={disabled || !message.trim()}>
-        {/* TODO: Cambiar icono cuando está enviando */}
-        ➤
-      </SendButton>
-    </Container>
-  );
-}
+        <SendButton onClick={handleSend} disabled={disabled || !message.trim()}>
+          {/* TODO: Cambiar icono cuando está enviando */}
+          ➤
+        </SendButton>
+      </Container>
+    );
+  }
+);
 
 const Container = styled.div`
   display: flex;
