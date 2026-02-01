@@ -1,133 +1,88 @@
-import { useState, useRef, useEffect } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import styled from 'styled-components';
-import { Bot, Hand, Lightbulb, BookOpen } from 'lucide-react';
+import { Bot, Hand, Lightbulb, BookOpen, Trash2 } from 'lucide-react';
 import { ChatMessage } from '../components/ChatMessage';
 import { ChatInput } from '../components/ChatInput';
-import { api } from '../services/api';
+import { useChatMessages } from '../hooks/useChatMessages';
 
 interface ChatProps {
   studentId: string;
 }
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: Date;
-}
-
-/**
- * 📝 TODO: El candidato debe completar esta página
- *
- * Funcionalidades a implementar:
- * 1. Cargar historial de conversación
- * 2. Implementar streaming de respuestas (mostrar token por token)
- * 3. Manejar errores de API
- * 4. Implementar "Nueva conversación"
- * 5. Auto-scroll al nuevo mensaje
- * 6. Indicador de "escribiendo..."
- *
- * Bonus:
- * - Persistir conversación en localStorage
- * - Botón para limpiar historial
- * - Exportar conversación
- */
 export function Chat({ studentId }: ChatProps) {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [isTyping, setIsTyping] = useState(false);
-  const [conversationId, setConversationId] = useState<string | null>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const queryClient = useQueryClient();
-
-  // TODO: Implementar carga del historial
-  // const { data: history } = useQuery({
-  //   queryKey: ['chatHistory', studentId, conversationId],
-  //   queryFn: () => api.getChatHistory(studentId, conversationId),
-  //   enabled: !!conversationId,
-  // });
-
-  // Mutation para enviar mensaje
-  const sendMessageMutation = useMutation({
-    mutationFn: (message: string) =>
-      api.sendChatMessage({
-        studentId,
-        message,
-        conversationId: conversationId || undefined,
-      }),
-    onMutate: (message) => {
-      // Añadir mensaje del usuario optimísticamente
-      const userMessage: Message = {
-        id: Date.now().toString(),
-        role: 'user',
-        content: message,
-        timestamp: new Date(),
-      };
-      setMessages((prev) => [...prev, userMessage]);
-      setIsTyping(true);
-    },
-    onSuccess: (data) => {
-      // Actualizar con la respuesta del asistente
-      if (!conversationId && data.conversationId) {
-        setConversationId(data.conversationId);
-      }
-
-      const assistantMessage: Message = {
-        id: data.assistantMessage._id,
-        role: 'assistant',
-        content: data.assistantMessage.content,
-        timestamp: new Date(data.assistantMessage.createdAt),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-      setIsTyping(false);
-    },
-    onError: (error) => {
-      console.error('Error sending message:', error);
-      setIsTyping(false);
-      // TODO: Mostrar error al usuario
-    },
-  });
-
-  // Auto-scroll cuando hay nuevos mensajes
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, isTyping]);
-
-  const startNewConversationMutation = useMutation({
-    mutationFn: () => api.startNewConversation(studentId),
-    onSuccess: (data) => {
-      setConversationId(data._id);
-      setMessages([]);
-    },
-    onError: (error) => {
-      console.error('Error starting new conversation:', error);
-    },
-  });
-
-  const handleNewConversation = () => {
-    startNewConversationMutation.mutate();
-  };
+  const {
+    conversations,
+    conversationId,
+    messages,
+    isTyping,
+    hasOlderMessages,
+    loadingMore,
+    loadOlderMessages,
+    selectConversation,
+    sendMessage,
+    sendMessagePending,
+    startNewConversation,
+    startNewConversationPending,
+    handleDeleteConversation,
+    deleteConversationPending,
+    formatConversationDate,
+    messagesEndRef,
+    messagesContainerRef,
+    chatInputRef,
+  } = useChatMessages(studentId);
 
   return (
     <Container>
-      <ChatHeader>
-        <HeaderTitle>
-          <HeaderIcon><Bot size={32} /></HeaderIcon>
-          <div>
-            <h2>Asistente de Estudios</h2>
-            <HeaderSubtitle>Pregúntame sobre tus cursos</HeaderSubtitle>
-          </div>
-        </HeaderTitle>
+      <Sidebar>
+        <SidebarTitle>Conversaciones</SidebarTitle>
+        <ConversationList>
+          {conversations.length === 0 && (
+            <SidebarEmpty>Sin conversaciones.</SidebarEmpty>
+          )}
+          {conversations.map((conv) => (
+            <ConvRow
+              key={conv.id}
+              $active={conversationId === conv.id}
+              onClick={() => selectConversation(conv.id)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => e.key === 'Enter' && selectConversation(conv.id)}
+            >
+              <ConvContent $active={conversationId === conv.id}>
+                <span>{conv.title || 'Conversación'}</span>
+                <small>{formatConversationDate(conv.lastMessageAt)} · {conv.messageCount} mensajes</small>
+              </ConvContent>
+              <DeleteConvButton
+                type="button"
+                title="Eliminar conversación"
+                onClick={(e) => handleDeleteConversation(e, conv.id)}
+                disabled={deleteConversationPending}
+              >
+                <Trash2 size={14} />
+              </DeleteConvButton>
+            </ConvRow>
+          ))}
+        </ConversationList>
+      </Sidebar>
 
-        <NewChatButton
-          onClick={handleNewConversation}
-          disabled={startNewConversationMutation.isPending}
-        >
-          + Nueva conversación
-        </NewChatButton>
-      </ChatHeader>
+      <MainArea>
+        <ChatHeader>
+          <HeaderTitle>
+            <HeaderIcon><Bot size={32} /></HeaderIcon>
+            <div>
+              <h2>Asistente de Estudios</h2>
+              <HeaderSubtitle>Pregúntame sobre tus cursos</HeaderSubtitle>
+            </div>
+          </HeaderTitle>
 
-      <MessagesContainer>
+          <NewChatButton
+            onClick={startNewConversation}
+            disabled={startNewConversationPending}
+          >
+            + Nueva conversación
+          </NewChatButton>
+        </ChatHeader>
+
+        <MessagesContainer ref={messagesContainerRef}>
         {messages.length === 0 && (
           <WelcomeMessage>
             <WelcomeIcon><Hand size={48} /></WelcomeIcon>
@@ -141,14 +96,26 @@ export function Chat({ studentId }: ChatProps) {
               </ul>
             </WelcomeText>
             <SuggestionButtons>
-              <SuggestionButton onClick={() => sendMessageMutation.mutate('¿Cómo puedo mejorar mi técnica de estudio?')}>
+              <SuggestionButton onClick={() => sendMessage('¿Cómo puedo mejorar mi técnica de estudio?')}>
                 <Lightbulb size={14} /> Técnicas de estudio
               </SuggestionButton>
-              <SuggestionButton onClick={() => sendMessageMutation.mutate('¿Qué curso me recomiendas empezar?')}>
+              <SuggestionButton onClick={() => sendMessage('¿Qué curso me recomiendas empezar?')}>
                 <BookOpen size={14} /> Recomendaciones
               </SuggestionButton>
             </SuggestionButtons>
           </WelcomeMessage>
+        )}
+
+        {hasOlderMessages && (
+          <LoadMoreWrapper>
+            <LoadMoreButton
+              type="button"
+              onClick={loadOlderMessages}
+              disabled={loadingMore}
+            >
+              {loadingMore ? 'Cargando...' : 'Cargar mensajes anteriores'}
+            </LoadMoreButton>
+          </LoadMoreWrapper>
         )}
 
         {messages.map((message) => (
@@ -157,32 +124,139 @@ export function Chat({ studentId }: ChatProps) {
             role={message.role}
             content={message.content}
             timestamp={message.timestamp}
+            chunkSources={message.metadata?.chunkSources}
           />
         ))}
 
-        {/* TODO: Implementar indicador de typing con streaming */}
         {isTyping && (
           <ChatMessage role="assistant" content="" isLoading />
         )}
 
         <div ref={messagesEndRef} />
-      </MessagesContainer>
+        </MessagesContainer>
 
-      <ChatInput
-        onSend={(message) => sendMessageMutation.mutate(message)}
-        disabled={sendMessageMutation.isPending}
-        placeholder="Escribe tu pregunta..."
-      />
+        <ChatInput
+          ref={chatInputRef}
+          onSend={sendMessage}
+          disabled={sendMessagePending}
+          placeholder="Escribe tu pregunta..."
+        />
+      </MainArea>
     </Container>
   );
 }
 
 const Container = styled.div`
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
   height: calc(100vh - 48px);
   background: var(--color-background);
   border-radius: var(--radius-lg);
+  overflow: hidden;
+`;
+
+const Sidebar = styled.aside`
+  width: 260px;
+  min-width: 260px;
+  background: var(--color-surface);
+  border-right: 1px solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+`;
+
+const SidebarTitle = styled.h3`
+  padding: var(--spacing-md) var(--spacing-lg);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  border-bottom: 1px solid var(--color-border);
+`;
+
+const ConversationList = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-sm);
+`;
+
+const ConvRow = styled.div<{ $active?: boolean }>`
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-bottom: var(--spacing-xs);
+  border-radius: var(--radius-md);
+  background: ${(p) => (p.$active ? 'var(--color-primary)' : 'transparent')};
+  color: ${(p) => (p.$active ? 'white' : 'inherit')};
+  cursor: pointer;
+
+  &:hover {
+    background: ${(p) => (p.$active ? 'var(--color-primary)' : 'var(--color-background)')};
+  }
+
+  &:hover button[title="Eliminar conversación"] {
+    opacity: 1;
+  }
+`;
+
+const ConvContent = styled.div<{ $active?: boolean }>`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 13px;
+  text-align: left;
+  color: ${(p) => (p.$active ? 'inherit' : 'var(--color-text-primary)')};
+
+  span {
+    font-weight: 500;
+  }
+
+  small {
+    font-size: 11px;
+    opacity: 0.85;
+    margin-top: 2px;
+  }
+`;
+
+const DeleteConvButton = styled.button`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: inherit;
+  opacity: 0.6;
+  cursor: pointer;
+  transition: opacity 0.2s ease, color 0.2s ease;
+
+  &:hover {
+    opacity: 1;
+    color: var(--color-error);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+`;
+
+const SidebarEmpty = styled.p`
+  padding: var(--spacing-md);
+  font-size: 13px;
+  color: var(--color-text-secondary);
+`;
+
+const MainArea = styled.div`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 `;
 
@@ -237,6 +311,33 @@ const MessagesContainer = styled.div`
   flex: 1;
   overflow-y: auto;
   padding: var(--spacing-lg);
+`;
+
+const LoadMoreWrapper = styled.div`
+  display: flex;
+  justify-content: center;
+  padding: var(--spacing-md);
+`;
+
+const LoadMoreButton = styled.button`
+  padding: var(--spacing-sm) var(--spacing-md);
+  font-size: 13px;
+  color: var(--color-primary);
+  background: transparent;
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background 0.2s ease, color 0.2s ease;
+
+  &:hover:not(:disabled) {
+    background: var(--color-primary);
+    color: white;
+  }
+
+  &:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+  }
 `;
 
 const WelcomeMessage = styled.div`
