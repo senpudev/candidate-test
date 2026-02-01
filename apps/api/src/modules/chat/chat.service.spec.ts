@@ -1,5 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { Logger } from '@nestjs/common';
+import { Logger, NotFoundException } from '@nestjs/common';
 import { getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
@@ -15,13 +15,17 @@ const CONVERSATION_ID = '507f1f77bcf86cd799439012';
 describe('ChatService', () => {
   let service: ChatService;
 
+  const mockFindChain = {
+    sort: jest.fn().mockReturnThis(),
+    skip: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue([]),
+  };
   const mockChatMessageModel = {
     create: jest.fn(),
-    find: jest.fn().mockReturnValue({
-      sort: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      lean: jest.fn().mockResolvedValue([]),
-    }),
+    find: jest.fn().mockReturnValue(mockFindChain),
+    countDocuments: jest.fn().mockResolvedValue(0),
     findById: jest.fn(),
     deleteMany: jest.fn(),
   };
@@ -29,8 +33,10 @@ describe('ChatService', () => {
   const mockConversationModel = {
     create: jest.fn(),
     find: jest.fn(),
+    findOne: jest.fn(),
     findById: jest.fn(),
     findByIdAndUpdate: jest.fn(),
+    findByIdAndDelete: jest.fn(),
     updateMany: jest.fn(),
   };
 
@@ -44,11 +50,8 @@ describe('ChatService', () => {
 
   beforeEach(async () => {
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => { });
-    mockChatMessageModel.find.mockReturnValue({
-      sort: jest.fn().mockReturnThis(),
-      limit: jest.fn().mockReturnThis(),
-      lean: jest.fn().mockResolvedValue([]),
-    });
+    mockFindChain.lean.mockResolvedValue([]);
+    mockChatMessageModel.find.mockReturnValue(mockFindChain);
     mockConversationModel.create.mockResolvedValue({
       _id: new Types.ObjectId(CONVERSATION_ID),
       studentId: new Types.ObjectId(STUDENT_ID),
@@ -238,15 +241,86 @@ describe('ChatService', () => {
   });
 
   describe('getHistory', () => {
-    it.todo('should return paginated chat history');
+    it('should return paginated chat history (page, limit, total)', async () => {
+      const convId = new Types.ObjectId();
+      mockConversationModel.findOne.mockResolvedValue({
+        _id: convId,
+        studentId: new Types.ObjectId(STUDENT_ID),
+      });
+      mockChatMessageModel.countDocuments.mockResolvedValue(25);
+      const page2Messages = [
+        { _id: new Types.ObjectId(), role: 'user', content: 'msg11', createdAt: new Date(), metadata: null },
+        { _id: new Types.ObjectId(), role: 'assistant', content: 'msg12', createdAt: new Date(), metadata: null },
+      ];
+      mockFindChain.lean.mockResolvedValue(page2Messages);
+
+      const result = await service.getHistory(STUDENT_ID, convId.toString(), 2, 10);
+
+      expect(mockChatMessageModel.countDocuments).toHaveBeenCalledWith({ conversationId: convId });
+      expect(mockFindChain.skip).toHaveBeenCalledWith(10); // (page 2 - 1) * 10
+      expect(mockFindChain.limit).toHaveBeenCalledWith(10);
+      expect(result).toEqual({
+        messages: page2Messages.map(({ _id, ...rest }) => ({ id: _id.toString(), ...rest })),
+        total: 25,
+        page: 2,
+        limit: 10,
+      });
+    });
+
     it.todo('should filter by conversationId when provided');
     it.todo('should return messages in chronological order');
   });
 
   describe('deleteHistory', () => {
-    it.todo('should delete all messages from conversation');
-    it.todo('should clear cache for deleted conversation');
-    it.todo('should throw error if conversation not found');
+    const convId = new Types.ObjectId(CONVERSATION_ID);
+    const conversation = {
+      _id: convId,
+      studentId: new Types.ObjectId(STUDENT_ID),
+      title: 'Test',
+      isActive: true,
+    };
+
+    it('should delete all messages from conversation', async () => {
+      mockConversationModel.findOne.mockResolvedValue(conversation);
+      mockChatMessageModel.deleteMany.mockResolvedValue({ deletedCount: 5 });
+      mockConversationModel.findByIdAndDelete.mockResolvedValue(conversation);
+
+      await service.deleteHistory(STUDENT_ID, CONVERSATION_ID);
+
+      expect(mockConversationModel.findOne).toHaveBeenCalledWith({
+        _id: convId,
+        studentId: new Types.ObjectId(STUDENT_ID),
+      });
+      expect(mockChatMessageModel.deleteMany).toHaveBeenCalledWith({ conversationId: convId });
+      expect(mockConversationModel.findByIdAndDelete).toHaveBeenCalledWith(convId);
+    });
+
+    it('should clear cache for deleted conversation', async () => {
+      mockConversationModel.findOne.mockResolvedValue(conversation);
+      mockChatMessageModel.deleteMany.mockResolvedValue({});
+      mockConversationModel.findByIdAndDelete.mockResolvedValue(conversation);
+
+      const cache = (service as any).conversationCache as Map<string, unknown>;
+      cache.set(CONVERSATION_ID, [{ role: 'user', content: 'cached' }]);
+      expect(cache.has(CONVERSATION_ID)).toBe(true);
+
+      await service.deleteHistory(STUDENT_ID, CONVERSATION_ID);
+
+      expect(cache.has(CONVERSATION_ID)).toBe(false);
+    });
+
+    it('should throw error if conversation not found', async () => {
+      mockConversationModel.findOne.mockResolvedValue(null);
+
+      const promise = service.deleteHistory(STUDENT_ID, CONVERSATION_ID);
+      await expect(promise).rejects.toThrow(NotFoundException);
+      await expect(promise).rejects.toThrow(
+        'Conversación no encontrada o no pertenece al estudiante'
+      );
+
+      expect(mockChatMessageModel.deleteMany).not.toHaveBeenCalled();
+      expect(mockConversationModel.findByIdAndDelete).not.toHaveBeenCalled();
+    });
   });
 
   describe('streamResponse', () => {
