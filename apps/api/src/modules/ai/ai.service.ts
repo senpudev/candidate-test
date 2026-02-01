@@ -15,6 +15,13 @@ interface AiResponse {
 
 type PlaceholderReason = 'no-config' | 'rate-limit' | 'api-error';
 
+// Context for the student for personalizing the system prompt.
+export interface StudentContext {
+  name?: string;
+  currentCourse?: string;
+  progress?: number;
+}
+
 @Injectable()
 export class AiService {
   private readonly logger = new Logger(AiService.name);
@@ -65,7 +72,8 @@ Reglas:
   async generateResponse(
     userMessage: string,
     history: MessageHistory[] = [],
-    relevantContext?: string[]
+    relevantContext?: string[],
+    studentContext?: StudentContext
   ): Promise<AiResponse> {
     const useRAG = relevantContext && relevantContext.length > 0;
     this.logger.debug(
@@ -84,8 +92,9 @@ Reglas:
     this.recordRequest();
 
     try {
-
-      let systemPrompt = this.baseSystemPrompt;
+      let systemPrompt = studentContext
+        ? this.buildContextualSystemPrompt(studentContext)
+        : this.baseSystemPrompt;
       if (useRAG) {
         // Enrich system prompt with RAG context if available (relevantContext)
         const contextText = relevantContext!
@@ -173,21 +182,21 @@ Reglas:
     }
   }
 
-  /**
-   * 📝 TODO: Implementar manejo de contexto personalizado
-   *
-   * El candidato debe implementar un método que:
-   * - Acepte información del estudiante (nombre, cursos, progreso)
-   * - Genere un system prompt personalizado
-   * - Incluya el contexto en las llamadas a OpenAI
-   */
-  buildContextualSystemPrompt(studentContext: {
-    name: string;
-    currentCourse?: string;
-    progress?: number;
-  }): string {
-    // TODO: Implementar personalizacion del prompt
-    return this.baseSystemPrompt;
+  // Build the contextual system prompt based on the student context.
+  private buildContextualSystemPrompt(studentContext: StudentContext): string {
+    const parts: string[] = [];
+    if (studentContext.name?.trim()) {
+      parts.push(`El estudiante se llama ${studentContext.name.trim()}.`);
+    }
+    if (studentContext.currentCourse?.trim()) {
+      parts.push(`Está cursando: ${studentContext.currentCourse.trim()}.`);
+    }
+    if (studentContext.progress != null && studentContext.progress >= 0) {
+      parts.push(`Progreso actual: ${studentContext.progress}%.`);
+    }
+    if (parts.length === 0) return this.baseSystemPrompt;
+    const block = `--- CONTEXTO DEL ESTUDIANTE ---\n${parts.join(' ')}\n\nUsa este contexto para dirigirte de forma más personal (nombre, referencias al curso o al progreso) cuando sea natural.`;
+    return `${this.baseSystemPrompt}\n\n${block}`;
   }
 
   // Generate a placeholder response based on the reason (rate limit, API error, no config).
