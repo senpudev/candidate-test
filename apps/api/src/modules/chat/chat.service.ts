@@ -5,6 +5,7 @@ import { ChatMessage, ChatMessageDocument } from './schemas/chat-message.schema'
 import { Conversation, ConversationDocument } from './schemas/conversation.schema';
 import { AiService } from '../ai/ai.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
+import { StudentService } from '../student/student.service';
 import { SendMessageDto } from './dto/send-message.dto';
 
 interface MessageHistory {
@@ -23,7 +24,8 @@ export class ChatService {
     @InjectModel(ChatMessage.name) private chatMessageModel: Model<ChatMessageDocument>,
     @InjectModel(Conversation.name) private conversationModel: Model<ConversationDocument>,
     private readonly aiService: AiService,
-    private readonly knowledgeService: KnowledgeService
+    private readonly knowledgeService: KnowledgeService,
+    private readonly studentService: StudentService
   ) { }
 
   /**
@@ -75,10 +77,18 @@ export class ChatService {
       this.logger.warn(`RAG search failed: ${error.message}`);
     }
 
+    let studentContext: { name?: string; currentCourse?: string; progress?: number } | undefined;
+    try {
+      studentContext = await this.studentService.getContextForChat(studentId);
+    } catch (err) {
+      this.logger.warn(`Student context for chat failed: ${err?.message}`);
+    }
+
     const aiResponse = await this.aiService.generateResponse(
       message,
       history,
-      relevantContext.length > 0 ? relevantContext : undefined
+      relevantContext.length > 0 ? relevantContext : undefined,
+      studentContext
     );
 
     const metadata: {

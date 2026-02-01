@@ -6,6 +6,7 @@ import { ChatMessage, ChatMessageSchema } from './schemas/chat-message.schema';
 import { Conversation, ConversationSchema } from './schemas/conversation.schema';
 import { AiModule } from '../ai/ai.module';
 import { KnowledgeModule } from '../knowledge/knowledge.module';
+import { StudentModule } from '../student/student.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module';
     ]),
     AiModule,
     KnowledgeModule,
+    StudentModule,
   ],
   controllers: [ChatController],
   providers: [ChatService],
