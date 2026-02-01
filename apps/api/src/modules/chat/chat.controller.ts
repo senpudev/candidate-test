@@ -16,7 +16,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 @ApiTags('chat')
 @Controller('chat')
 export class ChatController {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(private readonly chatService: ChatService) { }
 
   /**
    * ✅ PARCIALMENTE IMPLEMENTADO - Enviar mensaje al chat
@@ -57,15 +57,22 @@ export class ChatController {
   @ApiQuery({ name: 'conversationId', required: false, description: 'ID de conversación específica' })
   @ApiQuery({ name: 'page', required: false, description: 'Número de página' })
   @ApiQuery({ name: 'limit', required: false, description: 'Mensajes por página' })
+  @ApiQuery({ name: 'fromEnd', required: false, description: 'Si true, página 1 = últimos N mensajes' })
   @ApiResponse({ status: 200, description: 'Historial de mensajes' })
   async getHistory(
     @Param('studentId') studentId: string,
     @Query('conversationId') conversationId?: string,
-    @Query('page') page?: number,
-    @Query('limit') limit?: number
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('fromEnd') fromEnd?: string
   ) {
-    // TODO: Pasar parámetros de paginación al servicio
-    return this.chatService.getHistory(studentId, conversationId);
+    return this.chatService.getHistory(
+      studentId,
+      conversationId,
+      page ? Number(page) : undefined,
+      limit ? Number(limit) : undefined,
+      fromEnd === 'true' || fromEnd === '1'
+    );
   }
 
   /**

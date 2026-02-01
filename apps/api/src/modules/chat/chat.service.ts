@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, Types } from 'mongoose';
 import { ChatMessage, ChatMessageDocument } from './schemas/chat-message.schema';
@@ -54,19 +54,22 @@ export class ChatService {
 
     // Search Relevant chunks based on user message
     let relevantContext: string[] = [];
-    let chunksUsed: number[] = [];
+    let chunkSources: { source: string; count: number }[] = [];
     try {
       const searchResults = await this.knowledgeService.searchSimilar(message, {
         limit: 3, // Top 3 relevant chunks
         minScore: 0.5, // Similarity threshold
       });
       relevantContext = searchResults.map((result) => result.content);
-      // Get index chunks used 
-      chunksUsed = searchResults
-        .map((r) => (typeof r.chunkIndex === 'number' ? r.chunkIndex : undefined))
-        .filter((idx): idx is number => idx !== undefined);
+      // Group by sourceFile for UI: "(3) react-hooks.pdf, (1) mongodb-fundamentals.pdf" (own addition)
+      const bySource = new Map<string, number>();
+      for (const r of searchResults) {
+        const name = r.sourceFile || 'documento';
+        bySource.set(name, (bySource.get(name) ?? 0) + 1);
+      }
+      chunkSources = Array.from(bySource.entries()).map(([source, count]) => ({ source, count }));
       this.logger.debug(
-        `Found ${relevantContext.length} relevant context chunks for RAG (chunk indices: ${chunksUsed.join(', ') || 'none'})`
+        `Found ${relevantContext.length} relevant context chunks for RAG (sources: ${chunkSources.map((s) => `${s.source} (${s.count})`).join(', ') || 'none'})`
       );
     } catch (error) {
       this.logger.warn(`RAG search failed: ${error.message}`);
@@ -78,12 +81,16 @@ export class ChatService {
       relevantContext.length > 0 ? relevantContext : undefined
     );
 
-    const metadata: { tokensUsed?: number; model?: string; chunksUsed?: number[] } = {
+    const metadata: {
+      tokensUsed?: number;
+      model?: string;
+      chunkSources?: { source: string; count: number }[];
+    } = {
       tokensUsed: aiResponse.tokensUsed,
       model: aiResponse.model,
     };
-    if (chunksUsed.length > 0) {
-      metadata.chunksUsed = chunksUsed;
+    if (chunkSources.length > 0) {
+      metadata.chunkSources = chunkSources;
     }
 
     // Save assistant message and update conversation
@@ -109,6 +116,7 @@ export class ChatService {
     const maxCachedMessages = 20; // same limit as getConversationHistory
     this.conversationCache.set(conversation._id.toString(), historyForNextTime.slice(-maxCachedMessages));
 
+    this.logger.log(`Conversation ${conversation._id} created/updated for student ${studentId}`);
     return {
       conversationId: conversation._id,
       userMessage,
@@ -123,8 +131,7 @@ export class ChatService {
     const conversation = await this.createConversation(studentId);
     const conversationIdStr = conversation._id.toString();
 
-    // Nueva conversación: historial vacío. No reutilizar la referencia del cache de otra conversación
-    // o al hacer history.length = 0 mutaríamos el cache de la conversación anterior (bug).
+    // Create new history array not to reuse the reference of the cache of another conversation  Before it was history.length = 0, it was mutating the cache of the previous conversation (bug).
     const history: MessageHistory[] = [];
 
     if (initialContext) {
@@ -147,30 +154,109 @@ export class ChatService {
     return conversation;
   }
 
-  /**
-   * 📝 TODO: Implementar obtención del historial de chat
-   *
-   * El candidato debe implementar:
-   * - Paginación del historial (limit/offset)
-   * - Ordenar mensajes por fecha (más antiguos primero)
-   * - Incluir metadata de cada mensaje
-   */
-  async getHistory(studentId: string, conversationId?: string) {
-    // TODO: Implementar
-    throw new Error('Not implemented - El candidato debe implementar este método');
+  // Return list of conversations of a student (without messages).
+  private async getConversations(studentId: string) {
+    const conversations = await this.conversationModel
+      .find({ studentId: new Types.ObjectId(studentId) })
+      .sort({ lastMessageAt: -1 })
+      .select('title lastMessageAt messageCount isActive')
+      .lean();
+    return {
+      conversations: conversations.map(({ _id, ...rest }) => ({
+        id: _id.toString(),
+        ...rest,
+      })),
+    };
+  }
+
+  // Paginated messages. If fromEnd=true, page 1 = last N messages (always up to limit), page 2 = next N older messages.
+  private async getChatHistory(
+    studentId: string,
+    conversationId: string,
+    page: number = 1,
+    limit: number = 10,
+    fromEnd: boolean = false
+  ) {
+    const safePage = Math.max(1, Number(page) || 1);
+    const safeLimit = Math.min(100, Math.max(1, Number(limit) || 20));
+
+    const conversation = await this.conversationModel.findOne({
+      _id: new Types.ObjectId(conversationId),
+      studentId: new Types.ObjectId(studentId),
+    });
+    if (!conversation) {
+      return { messages: [], total: 0, page: safePage, limit: safeLimit };
+    }
+
+    const total = await this.chatMessageModel.countDocuments({
+      conversationId: conversation._id,
+    });
+
+    const skip = fromEnd
+      ? Math.max(0, total - safePage * safeLimit)
+      : (safePage - 1) * safeLimit;
+    const messages = await this.chatMessageModel
+      .find({ conversationId: conversation._id })
+      .sort({ createdAt: 1 })
+      .skip(skip)
+      .limit(safeLimit)
+      .select('role content createdAt metadata')
+      .lean();
+
+    return {
+      messages: messages.map(({ _id, ...rest }) => ({ id: _id.toString(), ...rest })),
+      total,
+      page: safePage,
+      limit: safeLimit,
+    };
+  }
+
+  // logic splitted in two methods to follow the single responsibility
+  async getHistory(
+    studentId: string,
+    conversationId?: string,
+    page?: number,
+    limit?: number,
+    fromEnd?: boolean
+  ) {
+    if (!conversationId) {
+      return this.getConversations(studentId);
+    }
+    return this.getChatHistory(
+      studentId,
+      conversationId,
+      page ?? 1,
+      limit ?? 10,
+      fromEnd ?? false
+    );
   }
 
   /**
-   * 📝 TODO: Implementar eliminación del historial
+   *  Implementar eliminación del historial
    *
    * El candidato debe implementar:
    * - Eliminar todos los mensajes de una conversación
    * - Opcionalmente eliminar la conversación completa
    * - Limpiar el cache en memoria
    */
-  async deleteHistory(studentId: string, conversationId: string) {
-    // TODO: Implementar
-    throw new Error('Not implemented - El candidato debe implementar este método');
+
+  async deleteHistory(studentId: string, conversationId: string): Promise<void> {
+    const convId = new Types.ObjectId(conversationId);
+    const conversation = await this.conversationModel.findOne({
+      _id: convId,
+      studentId: new Types.ObjectId(studentId),
+    });
+    if (!conversation) {
+      throw new NotFoundException('Conversación no encontrada o no pertenece al estudiante');
+    }
+
+    await Promise.all([
+      this.chatMessageModel.deleteMany({ conversationId: convId }), // Delete messages of the conversation
+      this.conversationModel.findByIdAndDelete(convId), // Delete the conversation
+    ]);
+
+    this.conversationCache.delete(conversationId);
+    this.logger.log(`Historial eliminado: conversación ${conversationId}`);
   }
 
   /**
