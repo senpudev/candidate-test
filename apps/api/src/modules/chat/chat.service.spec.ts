@@ -150,14 +150,91 @@ describe('ChatService', () => {
   });
 
   describe('startNewConversation', () => {
-    it.todo('should create a new conversation');
-    it.todo('should mark previous conversations as inactive');
-    it.todo('should initialize empty history for new conversation');
-    /**
-     * 🐛 Este test debería fallar debido al bug intencional
-     * El candidato debe descubrir el bug y proponer una solución
-     */
-    it.todo('should not affect history of previous conversations (BUG TEST)');
+    it('should create a new conversation', async () => {
+      const result = await service.startNewConversation(STUDENT_ID);
+
+      expect(mockConversationModel.create).toHaveBeenCalledTimes(1);
+      expect(mockConversationModel.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          studentId: expect.any(Types.ObjectId),
+          title: 'Nueva conversación',
+          isActive: true,
+        })
+      );
+      expect(result).toMatchObject({
+        _id: expect.anything(),
+        studentId: expect.anything(),
+        title: 'Nueva conversación',
+        isActive: true,
+      });
+    });
+
+    it('should mark previous conversations as inactive', async () => {
+      await service.startNewConversation(STUDENT_ID);
+
+      expect(mockConversationModel.updateMany).toHaveBeenCalledWith(
+        {
+          studentId: new Types.ObjectId(STUDENT_ID),
+          _id: { $ne: expect.any(Types.ObjectId) },
+        },
+        { isActive: false }
+      );
+    });
+
+    it('should initialize empty history for new conversation', async () => {
+      const result = await service.startNewConversation(STUDENT_ID);
+      const conversationIdStr = result._id.toString();
+
+      const history = await (service as any).getConversationHistory(conversationIdStr);
+      expect(history).toEqual([]);
+    });
+
+    it('should add initialContext as system message when provided', async () => {
+      const result = await service.startNewConversation(STUDENT_ID, 'Eres un tutor de TypeScript');
+      const conversationIdStr = result._id.toString();
+
+      const history = await (service as any).getConversationHistory(conversationIdStr);
+      expect(history).toEqual([{ role: 'system', content: 'Eres un tutor de TypeScript' }]);
+    });
+
+    // History should not be affected by previous conversations. (Bug test)
+    it('should not affect history of previous conversations (BUG TEST)', async () => {
+      // Simulate two conversations: first with history, second without.
+      const previousConvId = new Types.ObjectId();
+      mockConversationModel.create
+        .mockResolvedValueOnce({
+          _id: previousConvId,
+          studentId: new Types.ObjectId(STUDENT_ID),
+          title: 'Conversación anterior',
+          isActive: true,
+        })
+        .mockResolvedValueOnce({
+          _id: new Types.ObjectId(),
+          studentId: new Types.ObjectId(STUDENT_ID),
+          title: 'Nueva conversación',
+          isActive: true,
+        });
+
+      const firstConv = await service.startNewConversation(STUDENT_ID);
+      const firstIdStr = firstConv._id.toString();
+      
+      // Add messages to the history of the first conversation (simulates sendMessage)
+      const cachedHistory = await (service as any).getConversationHistory(firstIdStr);
+      cachedHistory.push({ role: 'user', content: 'Hola' }, { role: 'assistant', content: 'Hola!' });
+
+      const secondConv = await service.startNewConversation(STUDENT_ID);
+      const secondIdStr = secondConv._id.toString();
+
+      const historyFirst = await (service as any).getConversationHistory(firstIdStr);
+      const historySecond = await (service as any).getConversationHistory(secondIdStr);
+
+      expect(historyFirst).toHaveLength(2);
+      expect(historyFirst).toEqual([
+        { role: 'user', content: 'Hola' },
+        { role: 'assistant', content: 'Hola!' },
+      ]);
+      expect(historySecond).toEqual([]);
+    });
   });
 
   describe('getHistory', () => {
