@@ -6,6 +6,7 @@ interface ChatMessageProps {
   content: string;
   timestamp?: Date;
   isLoading?: boolean;
+  chunkSources?: { source: string; count: number }[];
 }
 
 /**
@@ -23,7 +24,7 @@ interface ChatMessageProps {
  * - Botón para copiar código
  * - Reacciones a mensajes
  */
-export function ChatMessage({ role, content, timestamp, isLoading }: ChatMessageProps) {
+export function ChatMessage({ role, content, timestamp, isLoading, chunkSources }: ChatMessageProps) {
   // TODO: Implementar formateo de markdown
 
   return (
@@ -41,7 +42,16 @@ export function ChatMessage({ role, content, timestamp, isLoading }: ChatMessage
         ) : (
           <>
             <MessageText>{content}</MessageText>
-            {timestamp && <Timestamp>{formatTime(timestamp)}</Timestamp>}
+            {(timestamp || (role === 'assistant' && chunkSources?.length)) && (
+              <MessageFooter>
+                {role === 'assistant' && chunkSources && chunkSources.length > 0 && (
+                  <RagSources>
+                    {chunkSources.map(({ source, count }) => `(${count}) ${source}`).join(', ')}
+                  </RagSources>
+                )}
+                {timestamp && <Timestamp>{formatTime(timestamp)}</Timestamp>}
+              </MessageFooter>
+            )}
           </>
         )}
       </MessageContent>
@@ -92,11 +102,24 @@ const MessageText = styled.div`
   line-height: 1.5;
 `;
 
-const Timestamp = styled.div`
+const MessageFooter = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--spacing-xs);
+  margin-top: var(--spacing-xs);
+`;
+
+const Timestamp = styled.span`
   font-size: 11px;
   opacity: 0.7;
-  margin-top: var(--spacing-xs);
-  text-align: right;
+  margin-left: auto;
+`;
+
+const RagSources = styled.span`
+  font-size: 11px;
+  opacity: 0.8;
+  color: var(--color-primary);
 `;
 
 const LoadingIndicator = styled.div`

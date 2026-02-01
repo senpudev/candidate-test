@@ -60,14 +60,23 @@ export const api = {
     return response.data;
   },
 
-  // TODO: Implementar cuando el candidato complete el endpoint
-  getChatHistory: async (studentId: string, conversationId?: string) => {
-    const params = conversationId ? { conversationId } : {};
+  // Without conversationId: list of conversations. With conversationId: paginated messages. If fromEnd=true, page 1 = last N messages (always up to limit), page 2 = next N older messages.
+  getChatHistory: async (
+    studentId: string,
+    conversationId?: string,
+    page?: number,
+    limit?: number,
+    fromEnd?: boolean
+  ) => {
+    const params: Record<string, string | number | boolean> = {};
+    if (conversationId) params.conversationId = conversationId;
+    if (page != null) params.page = page;
+    if (limit != null) params.limit = limit;
+    if (fromEnd != null) params.fromEnd = fromEnd;
     const response = await apiClient.get(`/chat/history/${studentId}`, { params });
     return response.data;
   },
 
-  // TODO: Implementar cuando el candidato complete el endpoint
   deleteChatHistory: async (studentId: string, conversationId: string) => {
     const response = await apiClient.delete(`/chat/history/${studentId}/${conversationId}`);
     return response.data;
