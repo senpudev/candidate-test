@@ -4,6 +4,7 @@ export interface SearchResult {
   courseId: string;
   score: number;
   chunkIndex?: number;
+  sourceFile?: string;
   metadata?: {
     pageNumber?: number;
     section?: string;

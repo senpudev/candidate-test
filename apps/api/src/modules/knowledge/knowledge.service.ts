@@ -141,6 +141,7 @@ export class KnowledgeService {
         courseId: chunk.courseId.toString(),
         score: this.cosineSimilarity(queryEmbedding, chunk.embedding),
         chunkIndex: chunk.chunkIndex,
+        sourceFile: chunk.sourceFile,
         metadata: chunk.metadata,
       }));
 
