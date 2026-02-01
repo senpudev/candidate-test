@@ -120,7 +120,6 @@ export class KnowledgeController {
     return {
       ...result,
       fileName: file.originalname,
-      fileSize: file.size,
     };
   }
 
