@@ -2,7 +2,7 @@ import styled from 'styled-components';
 import { Bot, Hand, Lightbulb, BookOpen, Trash2 } from 'lucide-react';
 import { ChatMessage } from '../components/ChatMessage';
 import { ChatInput } from '../components/ChatInput';
-import { useChatMessages } from '../hooks/useChatMessages';
+import { useChat } from '../hooks/useChat';
 
 interface ChatProps {
   studentId: string;
@@ -28,7 +28,7 @@ export function Chat({ studentId }: ChatProps) {
     messagesEndRef,
     messagesContainerRef,
     chatInputRef,
-  } = useChatMessages(studentId);
+  } = useChat({ studentId });
 
   return (
     <Container>
