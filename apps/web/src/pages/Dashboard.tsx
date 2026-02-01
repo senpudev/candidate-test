@@ -19,24 +19,69 @@ interface DashboardProps {
  * 4. Implementar la sección de cursos recientes
  */
 export function Dashboard({ studentId }: DashboardProps) {
-  const { data: dashboard, isLoading, error } = useQuery({
+  const {
+    data: dashboard,
+    isLoading: isLoadingDashboard,
+    error: dashboardError,
+    refetch: refetchDashboard,
+  } = useQuery({
     queryKey: ['dashboard', studentId],
     queryFn: () => api.getDashboard(studentId),
   });
 
-  const { data: courses } = useQuery({
+  const { data: courses, isLoading: isLoadingCourses } = useQuery({
     queryKey: ['courses', studentId],
     queryFn: () => api.getCourses(studentId),
   });
 
-  // TODO: Implementar estado de loading con skeleton
+  const isLoading = isLoadingDashboard;
+  const error = dashboardError;
+
   if (isLoading) {
-    return <LoadingState>Cargando dashboard...</LoadingState>;
+    return (
+      <Container>
+        <Header>
+          <SkeletonBlock width={280} height={36} />
+          <SkeletonBlock width={200} height={20} $marginTop={8} />
+        </Header>
+        <StatsGrid>
+          {[1, 2, 3, 4].map((i) => (
+            <SkeletonCard key={i} />
+          ))}
+        </StatsGrid>
+        <Section>
+          <SkeletonBlock width={180} height={24} style={{ marginBottom: 16 }} />
+          <ActivityChartPlaceholder>
+            <PlaceholderText>
+              <BarChart3 size={32} style={{ marginBottom: '8px', opacity: 0.3 }} />
+              <br />
+              Cargando...
+            </PlaceholderText>
+          </ActivityChartPlaceholder>
+        </Section>
+        <Section>
+          <SkeletonBlock width={220} height={24} $marginBottom={16} />
+          <CoursesGrid>
+            {[1, 2, 3].map((i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </CoursesGrid>
+        </Section>
+      </Container>
+    );
   }
 
-  // TODO: Implementar estado de error con retry
   if (error) {
-    return <ErrorState>Error al cargar el dashboard</ErrorState>;
+    return (
+      <ErrorState>
+        <ErrorContent>
+          <p>Error al cargar el dashboard</p>
+          <RetryButton type="button" onClick={() => refetchDashboard()}>
+            Reintentar
+          </RetryButton>
+        </ErrorContent>
+      </ErrorState>
+    );
   }
 
   if (!dashboard) {
@@ -218,20 +263,69 @@ const CoursesGrid = styled.div`
   gap: var(--spacing-md);
 `;
 
-const LoadingState = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 400px;
-  color: var(--color-text-secondary);
+const SkeletonBlock = styled.div<{ width?: number; height?: number; $marginTop?: number; $marginBottom?: number }>`
+  width: ${(p) => p.width ?? 100}px;
+  height: ${(p) => p.height ?? 20}px;
+  margin-top: ${(p) => p.$marginTop ?? 0}px;
+  margin-bottom: ${(p) => p.$marginBottom ?? 0}px;
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    var(--color-surface) 50%,
+    var(--color-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton 1.2s ease-in-out infinite;
+  border-radius: var(--radius-sm);
+  @keyframes skeleton {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+`;
+
+const SkeletonCard = styled.div`
+  height: 120px;
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    var(--color-surface) 50%,
+    var(--color-border) 75%
+  );
+  background-size: 200% 100%;
+  animation: skeleton 1.2s ease-in-out infinite;
+  border-radius: var(--radius-lg);
+  @keyframes skeleton {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
 `;
 
 const ErrorState = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 400px;
+  min-height: 400px;
   color: var(--color-error);
+`;
+
+const ErrorContent = styled.div`
+  text-align: center;
+  p {
+    margin-bottom: var(--spacing-md);
+  }
+`;
+
+const RetryButton = styled.button`
+  padding: var(--spacing-sm) var(--spacing-lg);
+  background: var(--color-primary);
+  color: white;
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 500;
+  cursor: pointer;
+  &:hover {
+    opacity: 0.9;
+  }
 `;
 
 const EmptyState = styled.div`

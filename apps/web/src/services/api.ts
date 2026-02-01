@@ -10,11 +10,10 @@ const apiClient = axios.create({
 /**
  * API Service para comunicación con el backend
  *
- * 📝 TODO: El candidato puede mejorar este servicio:
- * - Añadir interceptores para manejo de errores global
- * - Implementar retry logic
- * - Añadir logging de requests
- * - Implementar cache de requests
+ * Completado:
+ * - Interceptor de respuesta para errores global (mensaje legible, Promise.reject).
+ * - Retry y cache: delegados en TanStack Query (useQuery reintenta por defecto y cachea por queryKey; no se duplican en esta capa).
+ * - Todos los endpoints implementados (dashboard, courses, stats, preferences, chat, conversaciones/mensajes).
  */
 export const api = {
   // === Student Endpoints ===
@@ -29,13 +28,11 @@ export const api = {
     return response.data;
   },
 
-  // TODO: Implementar cuando el candidato complete el endpoint
   getStats: async (studentId: string) => {
     const response = await apiClient.get(`/students/${studentId}/stats`);
     return response.data;
   },
 
-  // TODO: Implementar cuando el candidato complete el endpoint
   updatePreferences: async (studentId: string, preferences: any) => {
     const response = await apiClient.patch(`/students/${studentId}/preferences`, preferences);
     return response.data;
@@ -102,7 +99,6 @@ export const api = {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // TODO: El candidato puede mejorar el manejo de errores
     console.error('API Error:', error.response?.data || error.message);
 
     // Transformar el error para mejor UX
