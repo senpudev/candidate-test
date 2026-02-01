@@ -261,4 +261,34 @@ export class StudentService {
   async findById(id: string) {
     return this.studentModel.findById(id).lean();
   }
+
+  // Get basic student context for chat (name, current course, progress)
+  async getContextForChat(studentId: string): Promise<{
+    name?: string;
+    currentCourse?: string;
+    progress?: number;
+  }> {
+    const student = await this.studentModel.findById(studentId).select('name').lean();
+    if (!student) return {};
+
+    const progressRecord = await this.progressModel
+      .findOne({
+        studentId: new Types.ObjectId(studentId),
+        progressPercentage: { $gt: 0, $lt: 100 },
+      })
+      .sort({ lastAccessedAt: -1 })
+      .populate<{ courseId: { title?: string } }>('courseId', 'title')
+      .lean();
+
+    const currentCourse = progressRecord?.courseId
+      ? (progressRecord.courseId as { title?: string })?.title
+      : undefined;
+    const progress = progressRecord?.progressPercentage;
+
+    return {
+      name: student.name,
+      currentCourse,
+      progress,
+    };
+  }
 }
