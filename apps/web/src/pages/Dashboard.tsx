@@ -1,9 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
 import styled from 'styled-components';
 import { BookOpen, CheckCircle, Clock, Target, BarChart3 } from 'lucide-react';
 import { StatsCard } from '../components/StatsCard';
 import { CourseCard } from '../components/CourseCard';
-import { api } from '../services/api';
+import { useDashboard } from '../hooks/useDashboard';
 
 interface DashboardProps {
   studentId: string;
@@ -19,23 +18,7 @@ interface DashboardProps {
  * 4. Implementar la sección de cursos recientes
  */
 export function Dashboard({ studentId }: DashboardProps) {
-  const {
-    data: dashboard,
-    isLoading: isLoadingDashboard,
-    error: dashboardError,
-    refetch: refetchDashboard,
-  } = useQuery({
-    queryKey: ['dashboard', studentId],
-    queryFn: () => api.getDashboard(studentId),
-  });
-
-  const { data: courses, isLoading: isLoadingCourses } = useQuery({
-    queryKey: ['courses', studentId],
-    queryFn: () => api.getCourses(studentId),
-  });
-
-  const isLoading = isLoadingDashboard;
-  const error = dashboardError;
+  const { dashboard, courses, isLoading, error, refetch: refetchDashboard } = useDashboard(studentId);
 
   if (isLoading) {
     return (
@@ -76,7 +59,7 @@ export function Dashboard({ studentId }: DashboardProps) {
       <ErrorState>
         <ErrorContent>
           <p>Error al cargar el dashboard</p>
-          <RetryButton type="button" onClick={() => refetchDashboard()}>
+          <RetryButton type="button" onClick={() => refetchDashboard?.()}>
             Reintentar
           </RetryButton>
         </ErrorContent>
