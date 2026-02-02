@@ -42,10 +42,11 @@ export function Chat({ studentId }: ChatProps) {
             <ConvRow
               key={conv.id}
               $active={conversationId === conv.id}
+              $disabled={isTyping}
               onClick={() => selectConversation(conv.id)}
               role="button"
-              tabIndex={0}
-              onKeyDown={(e) => e.key === 'Enter' && selectConversation(conv.id)}
+              tabIndex={isTyping ? -1 : 0}
+              onKeyDown={(e) => e.key === 'Enter' && !isTyping && selectConversation(conv.id)}
             >
               <ConvContent $active={conversationId === conv.id}>
                 <span>{conv.title || 'Conversación'}</span>
@@ -55,7 +56,7 @@ export function Chat({ studentId }: ChatProps) {
                 type="button"
                 title="Eliminar conversación"
                 onClick={(e) => handleDeleteConversation(e, conv.id)}
-                disabled={deleteConversationPending}
+                disabled={deleteConversationPending || isTyping}
               >
                 <Trash2 size={14} />
               </DeleteConvButton>
@@ -76,7 +77,7 @@ export function Chat({ studentId }: ChatProps) {
 
           <NewChatButton
             onClick={startNewConversation}
-            disabled={startNewConversationPending}
+            disabled={startNewConversationPending || isTyping}
           >
             + Nueva conversación
           </NewChatButton>
@@ -179,7 +180,7 @@ const ConversationList = styled.div`
   padding: var(--spacing-sm);
 `;
 
-const ConvRow = styled.div<{ $active?: boolean }>`
+const ConvRow = styled.div<{ $active?: boolean; $disabled?: boolean }>`
   display: flex;
   align-items: center;
   gap: var(--spacing-xs);
@@ -187,7 +188,9 @@ const ConvRow = styled.div<{ $active?: boolean }>`
   border-radius: var(--radius-md);
   background: ${(p) => (p.$active ? 'var(--color-primary)' : 'transparent')};
   color: ${(p) => (p.$active ? 'white' : 'inherit')};
-  cursor: pointer;
+  cursor: ${(p) => (p.$disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${(p) => (p.$disabled ? 0.7 : 1)};
+  pointer-events: ${(p) => (p.$disabled ? 'none' : 'auto')};
 
   &:hover {
     background: ${(p) => (p.$active ? 'var(--color-primary)' : 'var(--color-background)')};
