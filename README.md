@@ -89,8 +89,8 @@ El sistema RAG permite que el chat responda preguntas usando el contenido real d
 
 - `knowledge.service.ts` → Crear embeddings, indexar, buscar
 - `knowledge.controller.ts` → Endpoints `/index` y `/search`
-- `ai.service.ts` → `generateResponseWithRAG()` usa el contexto encontrado
-- `chat.service.ts` → Orquesta: busca contexto → llama a AI con contexto
+- `ai.service.ts` → `generateResponse(message, history, relevantContext?)` usa el contexto cuando se pasa
+- `chat.service.ts` → Orquesta: busca contexto → llama a `generateResponse(..., relevantContext)`
 
 > **Tip:** Para usar `KnowledgeService` en `ChatService`, deberás importar `KnowledgeModule` en `chat.module.ts`.
 
@@ -185,84 +185,84 @@ candidate-test/
 ### Backend (NestJS)
 
 1. **Modulo Student** ([`apps/api/src/modules/student/`](apps/api/src/modules/student/)):
-   - [ ] `GET /api/students/:id/stats` - Estadisticas detalladas
+   - [X] `[Must Have]` `GET /api/students/:id/stats` - Estadisticas detalladas
      - Archivo: [`student.controller.ts`](apps/api/src/modules/student/student.controller.ts)
      - Archivo: [`student.service.ts`](apps/api/src/modules/student/student.service.ts)
-   - [ ] `PATCH /api/students/:id/preferences` - Actualizar preferencias
+   - [X] `[Must Have]` `PATCH /api/students/:id/preferences` - Actualizar preferencias
      - Archivo: [`student.controller.ts`](apps/api/src/modules/student/student.controller.ts)
      - Archivo: [`student.service.ts`](apps/api/src/modules/student/student.service.ts)
 
 2. **Modulo Chat** ([`apps/api/src/modules/chat/`](apps/api/src/modules/chat/)):
-   - [ ] `GET /api/chat/history/:studentId` - Historial con paginacion
+   - [X] `[Should Have]` `GET /api/chat/history/:studentId` - Historial con paginacion
      - Archivo: [`chat.controller.ts`](apps/api/src/modules/chat/chat.controller.ts)
      - Archivo: [`chat.service.ts`](apps/api/src/modules/chat/chat.service.ts)
-   - [ ] `DELETE /api/chat/history/:studentId/:conversationId` - Eliminar historial
+   - [X] `[Should Have]` `DELETE /api/chat/history/:studentId/:conversationId` - Eliminar historial
      - Archivo: [`chat.controller.ts`](apps/api/src/modules/chat/chat.controller.ts)
      - Archivo: [`chat.service.ts`](apps/api/src/modules/chat/chat.service.ts)
-   - [ ] Integrar RAG en `sendMessage`: buscar contexto → llamar a `generateResponseWithRAG`
+   - [x] `[Must Have]` Integrar RAG en `sendMessage`: buscar contexto → llamar a `generateResponse(..., relevantContext)`
      - Archivo: [`chat.service.ts`](apps/api/src/modules/chat/chat.service.ts)
 
 3. **Modulo AI** ([`apps/api/src/modules/ai/`](apps/api/src/modules/ai/)):
-   - [ ] Integracion real con OpenAI API
+   - [x] `[Must Have]` Integracion real con OpenAI API
      - Archivo: [`ai.service.ts`](apps/api/src/modules/ai/ai.service.ts)
-   - [ ] Sistema de contexto personalizado por estudiante
+   - [ ] `[Should Have]` Sistema de contexto personalizado por estudiante
      - Archivo: [`ai.service.ts`](apps/api/src/modules/ai/ai.service.ts)
 
 > **Nota sobre Streaming:** El streaming de respuestas (SSE/WebSocket) está clasificado como "Should Have". Si implementas streaming, hazlo en `ai.service.ts` (`generateStreamResponse`) y exponlo desde `chat.controller.ts`.
 
 1. **Modulo Knowledge (RAG)** ([`apps/api/src/modules/knowledge/`](apps/api/src/modules/knowledge/)):
-   - [ ] Implementar creacion de embeddings con OpenAI
+   - [x] `[Must Have]` Implementar creacion de embeddings con OpenAI
      - Archivo: [`knowledge.service.ts`](apps/api/src/modules/knowledge/knowledge.service.ts)
-   - [ ] Implementar indexacion de contenido de cursos
+   - [x] `[Must Have]` Implementar indexacion de contenido de cursos
      - Archivo: [`knowledge.service.ts`](apps/api/src/modules/knowledge/knowledge.service.ts)
-   - [ ] Implementar busqueda semantica (similitud coseno)
+   - [x] `[Must Have]` Implementar busqueda semantica (similitud coseno)
      - Archivo: [`knowledge.service.ts`](apps/api/src/modules/knowledge/knowledge.service.ts)
-   - [ ] Completar endpoints de indexacion y busqueda
+   - [x] `[Must Have]` Completar endpoints de indexacion y busqueda
      - Archivo: [`knowledge.controller.ts`](apps/api/src/modules/knowledge/knowledge.controller.ts)
-   - [ ] Integrar RAG en el flujo del chat (usar contexto en respuestas)
-     - Archivo: [`ai.service.ts`](apps/api/src/modules/ai/ai.service.ts)
+   - [x] `[Must Have]` Integrar RAG en el flujo del chat (usar contexto en respuestas)
+     - Archivo: [`chat.service.ts`](apps/api/src/modules/chat/chat.service.ts) llama a `generateResponse(..., relevantContext)`
 
 2. **Debugging:**
 
-   - [ ] Hay un bug intencional en el codigo. Encuentralo y documenta la solucion en `DECISIONS.md`
+   - [x] `[Must Have]` Hay un bug intencional en el codigo. Encuentralo y documenta la solucion en `DECISIONS.md` (bug en `startNewConversation`: historial por referencia; ver DECISIONS.md)
 
 ### Frontend (React)
 
 > **Nota:** El frontend es secundario en esta prueba. Enfócate primero en el backend y RAG.
 
 1. **Dashboard** ([`apps/web/src/pages/Dashboard.tsx`](apps/web/src/pages/Dashboard.tsx)):
-   - [ ] Estados de loading con skeleton y error con retry
-   - [ ] *(Nice to have)* Implementar `ActivityChart` con chart.js o recharts
+   - [X] `[Should Have]` Estados de loading con skeleton y error con retry
+   - [ ] `[Nice to have]` Implementar `ActivityChart` con chart.js o recharts
 
 2. **Componentes** ([`apps/web/src/components/`](apps/web/src/components/)):
-   - [ ] Completar [`ChatInput.tsx`](apps/web/src/components/ChatInput.tsx) con auto-resize y contador de caracteres
-   - [ ] *(Nice to have)* [`CourseCard.tsx`](apps/web/src/components/CourseCard.tsx): añadir efectos hover (la navegación es placeholder, no hay página de detalle)
-   - [ ] *(Nice to have)* [`ChatMessage.tsx`](apps/web/src/components/ChatMessage.tsx): formateo markdown
+   - [X] `[Should Have]` Completar [`ChatInput.tsx`](apps/web/src/components/ChatInput.tsx) con auto-resize y contador de caracteres
+   - [ ] `[Nice to have]` [`CourseCard.tsx`](apps/web/src/components/CourseCard.tsx): añadir efectos hover (la navegación es placeholder, no hay página de detalle)
+   - [ ] `[Nice to have]` [`ChatMessage.tsx`](apps/web/src/components/ChatMessage.tsx): formateo markdown
 
 3. **Hook useChat** ([`apps/web/src/hooks/useChat.ts`](apps/web/src/hooks/useChat.ts)):
-   - [ ] Completar `loadHistory` para cargar historial desde el backend
-   - [ ] *(Should have)* `sendWithStreaming` si implementaste streaming en backend
+   - [X] `[Should Have]` Completar `loadHistory` para cargar historial desde el backend
+   - [ ] `[Should Have]` `sendWithStreaming` si implementaste streaming en backend
 
 4. **Servicio API** ([`apps/web/src/services/api.ts`](apps/web/src/services/api.ts)):
-   - [ ] Completar métodos comentados cuando implementes los endpoints del backend
+   - [X] `[Should Have]` Completar métodos comentados cuando implementes los endpoints del backend
 
 ### Tests
 
-Archivos con `it.todo()` que debes implementar:
+`[Must Have]` Archivos con `it.todo()` que debes implementar:
 
 **Backend:**
 
-- [`apps/api/src/modules/student/student.controller.spec.ts`](apps/api/src/modules/student/student.controller.spec.ts)
-- [`apps/api/src/modules/student/dto/update-preferences.dto.spec.ts`](apps/api/src/modules/student/dto/update-preferences.dto.spec.ts)
-- [`apps/api/src/modules/chat/chat.service.spec.ts`](apps/api/src/modules/chat/chat.service.spec.ts)
-- [`apps/api/src/modules/ai/ai.service.spec.ts`](apps/api/src/modules/ai/ai.service.spec.ts)
-- [`apps/api/src/modules/knowledge/knowledge.service.spec.ts`](apps/api/src/modules/knowledge/knowledge.service.spec.ts)
+- [x] `[Must Have]` [`apps/api/src/modules/student/student.controller.spec.ts`](apps/api/src/modules/student/student.controller.spec.ts)
+- [x] `[Must Have]` [`apps/api/src/modules/student/dto/update-preferences.dto.spec.ts`](apps/api/src/modules/student/dto/update-preferences.dto.spec.ts)
+- [x] `[Must Have]` [`apps/api/src/modules/chat/chat.service.spec.ts`](apps/api/src/modules/chat/chat.service.spec.ts) (sendMessage implementados; quedan it.todo para getHistory, etc.)
+- [x] `[Must Have]` [`apps/api/src/modules/ai/ai.service.spec.ts`](apps/api/src/modules/ai/ai.service.spec.ts)
+- [X] `[Must Have]` [`apps/api/src/modules/knowledge/knowledge.service.spec.ts`](apps/api/src/modules/knowledge/knowledge.service.spec.ts)
 
 **Frontend:**
 
-- [`apps/web/src/pages/Dashboard.spec.tsx`](apps/web/src/pages/Dashboard.spec.tsx)
-- [`apps/web/src/pages/Chat.spec.tsx`](apps/web/src/pages/Chat.spec.tsx)
-- [`apps/web/src/components/StatsCard.spec.tsx`](apps/web/src/components/StatsCard.spec.tsx)
+- [ ] `[Must Have]` [`apps/web/src/pages/Dashboard.spec.tsx`](apps/web/src/pages/Dashboard.spec.tsx)
+- [ ] `[Must Have]` [`apps/web/src/pages/Chat.spec.tsx`](apps/web/src/pages/Chat.spec.tsx)
+- [ ] `[Must Have]` [`apps/web/src/components/StatsCard.spec.tsx`](apps/web/src/components/StatsCard.spec.tsx)
 
 ## Comandos Útiles
 
@@ -340,7 +340,7 @@ Una vez extraído el texto, usa el endpoint `POST /api/knowledge/index` para ind
    - `knowledge.service.ts` → `indexCourseContent()`
    - `knowledge.service.ts` → `searchSimilar()`
    - `knowledge.controller.ts` → endpoints
-4. **Integra RAG en el chat** - `chat.service.ts` → modificar `sendMessage()` para usar `generateResponseWithRAG()`
+4. **Integra RAG en el chat** - `chat.service.ts` → modificar `sendMessage()` para usar `generateResponse(..., relevantContext)`
 5. **Endpoints de estudiante** - `student.service.ts` → `getDetailedStats()`, `updatePreferences()`
 6. **Historial de chat** - `chat.service.ts` → `getHistory()`, `deleteHistory()`
 7. **Tests** - Implementa los `it.todo()`
