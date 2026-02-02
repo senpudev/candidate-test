@@ -30,7 +30,7 @@ describe('AiService', () => {
   };
 
   beforeEach(async () => {
-    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {}); // Prevent console.error calls during tests.
+    jest.spyOn(Logger.prototype, 'error').mockImplementation(() => { }); // Prevent console.error calls during tests.
     mockConfigService.get.mockReturnValue(undefined);
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -212,9 +212,31 @@ describe('AiService', () => {
   });
 
   describe('buildContextualSystemPrompt', () => {
-    it.todo('should include student name in prompt');
-    it.todo('should include current course if provided');
-    it.todo('should include progress percentage');
-    it.todo('should maintain base prompt content');
+    const buildPrompt = (context: { name?: string; currentCourse?: string; progress?: number }) =>
+      (service as any).buildContextualSystemPrompt(context);
+
+    it('should include student name in prompt', () => {
+      const prompt = buildPrompt({ name: 'Ana' });
+      expect(prompt).toContain('Ana');
+      expect(prompt).toContain('estudiante se llama');
+    });
+
+    it('should include current course if provided', () => {
+      const prompt = buildPrompt({ currentCourse: 'React Hooks' });
+      expect(prompt).toContain('React Hooks');
+      expect(prompt).toContain('Está cursando');
+    });
+
+    it('should include progress percentage', () => {
+      const prompt = buildPrompt({ progress: 75 });
+      expect(prompt).toContain('75');
+      expect(prompt).toContain('Progreso actual');
+    });
+
+    it('should maintain base prompt content', () => {
+      const prompt = buildPrompt({ name: 'Luis' });
+      expect(prompt).toContain('Eres un asistente educativo');
+      expect(prompt).toContain('plataforma de cursos');
+    });
   });
 });
