@@ -260,9 +260,9 @@ candidate-test/
 
 **Frontend:**
 
-- [ ] `[Must Have]` [`apps/web/src/pages/Dashboard.spec.tsx`](apps/web/src/pages/Dashboard.spec.tsx)
-- [ ] `[Must Have]` [`apps/web/src/pages/Chat.spec.tsx`](apps/web/src/pages/Chat.spec.tsx)
-- [ ] `[Must Have]` [`apps/web/src/components/StatsCard.spec.tsx`](apps/web/src/components/StatsCard.spec.tsx)
+- [X] `[Must Have]` [`apps/web/src/pages/Dashboard.spec.tsx`](apps/web/src/pages/Dashboard.spec.tsx)
+- [X] `[Must Have]` [`apps/web/src/pages/Chat.spec.tsx`](apps/web/src/pages/Chat.spec.tsx)
+- [X] `[Must Have]` [`apps/web/src/components/StatsCard.spec.tsx`](apps/web/src/components/StatsCard.spec.tsx)
 
 ## Comandos Útiles
 
