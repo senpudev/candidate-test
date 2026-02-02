@@ -46,7 +46,37 @@ describe('StatsCard', () => {
   /**
    * 📝 TODO: El candidato debe añadir más tests
    */
-  it.todo('should apply custom color to icon wrapper');
-  it.todo('should handle zero value');
-  it.todo('should be accessible');
+  it('should apply custom color to icon wrapper', () => {
+    render(
+      <StatsCard
+        title="Total Cursos"
+        value={5}
+        icon={<BookOpen data-testid="icon-colored" />}
+        color="#ff0000"
+      />
+    );
+
+    const icon = screen.getByTestId('icon-colored');
+    const wrapper = icon.parentElement as HTMLElement;
+    expect(wrapper).toHaveStyle('color: #ff0000');
+  });
+
+  it('should handle zero value', () => {
+    render(<StatsCard title="Total Cursos" value={0} icon={<BookOpen />} />);
+
+    expect(screen.getByText('0')).toBeInTheDocument();
+  });
+
+  it('should be accessible', () => {
+    render(
+      <StatsCard
+        title="Total Cursos"
+        value={5}
+        icon={<BookOpen />}
+      />
+    );
+
+    const card = screen.getByRole('group', { name: 'Total Cursos' });
+    expect(card).toBeInTheDocument();
+  });
 });

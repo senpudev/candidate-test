@@ -14,7 +14,7 @@ interface StatsCardProps {
  */
 export function StatsCard({ title, value, icon, color = 'var(--color-primary)', subtitle }: StatsCardProps) {
   return (
-    <Card>
+    <Card role="group" aria-label={title}>
       <IconWrapper $color={color}>{icon}</IconWrapper>
       <Content>
         <Title>{title}</Title>
