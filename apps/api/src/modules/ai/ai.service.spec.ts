@@ -4,6 +4,7 @@ import { Logger } from '@nestjs/common';
 import { AiService } from './ai.service';
 
 const mockChatCompletionsCreate = jest.fn();
+const mockEmbeddingsCreate = jest.fn();
 
 /** 
   AiService creates the client with `new OpenAI()` with a conditional check inside the constructor, not by injection.
@@ -17,6 +18,9 @@ jest.mock('openai', () => ({
       completions: {
         create: mockChatCompletionsCreate,
       },
+    },
+    embeddings: {
+      create: mockEmbeddingsCreate,
     },
   })),
 }));
@@ -63,8 +67,9 @@ describe('AiService', () => {
     });
   });
 
-  describe('generateResponse', () => {
-    it('should return placeholder response when OpenAI not configured', async () => {
+  /** Service from main beforeEach has no API key; all methods that need OpenAI are covered here. */
+  describe('when OpenAI is not configured', () => {
+    it('generateResponse returns placeholder', async () => {
       const result = await service.generateResponse('Hello');
 
       expect(result).toHaveProperty('content');
@@ -72,6 +77,14 @@ describe('AiService', () => {
       expect(result.content?.length).toBeGreaterThan(0);
     });
 
+    it('createEmbedding throws', async () => {
+      await expect(service.createEmbedding('hello')).rejects.toThrow(
+        'OpenAI client not initialized'
+      );
+    });
+  });
+
+  describe('generateResponse', () => {
     describe('when OpenAI is configured', () => {
       beforeEach(async () => {
         mockConfigService.get.mockReturnValue('ai-test-key');
@@ -201,6 +214,67 @@ describe('AiService', () => {
         expect(mockChatCompletionsCreate).toHaveBeenCalledTimes(2);
         expect(thirdResult.model).toBe('placeholder');
         expect(thirdResult.content).toContain('ultra atareados');
+      });
+    });
+  });
+
+  describe('createEmbedding', () => {
+    it('should throw when text is empty', async () => {
+      await expect(service.createEmbedding('')).rejects.toThrow('Text cannot be empty');
+      await expect(service.createEmbedding('   ')).rejects.toThrow('Text cannot be empty');
+    });
+
+    describe('when OpenAI is configured', () => {
+      beforeEach(async () => {
+        mockConfigService.get.mockReturnValue('ai-test-key');
+        const module: TestingModule = await Test.createTestingModule({
+          providers: [
+            AiService,
+            { provide: ConfigService, useValue: mockConfigService },
+          ],
+        }).compile();
+        service = module.get<AiService>(AiService);
+      });
+
+      it('should call embeddings.create with correct model and input', async () => {
+        mockEmbeddingsCreate.mockResolvedValue({
+          data: [{ embedding: [0.1, 0.2, 0.3] }],
+        });
+
+        await service.createEmbedding('some text');
+
+        expect(mockEmbeddingsCreate).toHaveBeenCalledWith({
+          model: 'text-embedding-3-small',
+          input: 'some text',
+        });
+      });
+
+      it('should return the embedding array from response.data[0].embedding', async () => {
+        const fakeEmbedding = [0.1, -0.2, 0.5];
+        mockEmbeddingsCreate.mockResolvedValue({
+          data: [{ embedding: fakeEmbedding }],
+        });
+
+        const result = await service.createEmbedding('hello');
+
+        expect(result).toEqual(fakeEmbedding);
+        expect(result).toHaveLength(3);
+      });
+
+      it('should throw when API returns empty embedding', async () => {
+        mockEmbeddingsCreate.mockResolvedValue({
+          data: [{ embedding: [] }],
+        });
+
+        await expect(service.createEmbedding('hello')).rejects.toThrow(
+          'Empty embedding returned from OpenAI'
+        );
+      });
+
+      it('should rethrow on API error', async () => {
+        mockEmbeddingsCreate.mockRejectedValue(new Error('API rate limit'));
+
+        await expect(service.createEmbedding('hello')).rejects.toThrow('API rate limit');
       });
     });
   });
