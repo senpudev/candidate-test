@@ -20,6 +20,7 @@ export interface StudentContext {
   name?: string;
   currentCourse?: string;
   progress?: number;
+  coursesInProgress?: { title: string; progress: number }[];
 }
 
 @Injectable()
@@ -194,8 +195,17 @@ Reglas:
     if (studentContext.progress != null && studentContext.progress >= 0) {
       parts.push(`Progreso actual: ${studentContext.progress}%.`);
     }
+    if (
+      studentContext.coursesInProgress &&
+      studentContext.coursesInProgress.length > 0
+    ) {
+      const list = studentContext.coursesInProgress
+        .map((c) => `${c.title} (${c.progress}%)`)
+        .join(', ');
+      parts.push(`Cursos en los que está inscrito: ${list}.`);
+    }
     if (parts.length === 0) return this.baseSystemPrompt;
-    const block = `--- CONTEXTO DEL ESTUDIANTE ---\n${parts.join(' ')}\n\nUsa este contexto para dirigirte de forma más personal (nombre, referencias al curso o al progreso) cuando sea natural.`;
+    const block = `--- CONTEXTO DEL ESTUDIANTE ---\n${parts.join(' ')}\n\nUsa este contexto para dirigirte de forma más personal (nombre, referencias a sus cursos o al progreso) cuando sea natural.`;
     return `${this.baseSystemPrompt}\n\n${block}`;
   }
 

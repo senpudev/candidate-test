@@ -267,28 +267,34 @@ export class StudentService {
     name?: string;
     currentCourse?: string;
     progress?: number;
+    coursesInProgress?: { title: string; progress: number }[];
   }> {
     const student = await this.studentModel.findById(studentId).select('name').lean();
     if (!student) return {};
 
-    const progressRecord = await this.progressModel
-      .findOne({
-        studentId: new Types.ObjectId(studentId),
-        progressPercentage: { $gt: 0, $lt: 100 },
-      })
+    const allProgress = await this.progressModel
+      .find({ studentId: new Types.ObjectId(studentId) })
       .sort({ lastAccessedAt: -1 })
       .populate<{ courseId: { title?: string } }>('courseId', 'title')
       .lean();
 
-    const currentCourse = progressRecord?.courseId
-      ? (progressRecord.courseId as { title?: string })?.title
-      : undefined;
-    const progress = progressRecord?.progressPercentage;
+    const coursesInProgress = allProgress
+      .filter((p) => {
+        const prog = p.progressPercentage ?? 0;
+        return prog > 0 && prog < 100;
+      })
+      .map((p) => ({
+        title: (p.courseId as { title?: string })?.title ?? 'Curso',
+        progress: p.progressPercentage ?? 0,
+      }));
+    const currentCourse = coursesInProgress[0]?.title;
+    const progress = coursesInProgress[0]?.progress;
 
     return {
       name: student.name,
       currentCourse,
       progress,
+      coursesInProgress: coursesInProgress.length > 0 ? coursesInProgress : undefined,
     };
   }
 }
