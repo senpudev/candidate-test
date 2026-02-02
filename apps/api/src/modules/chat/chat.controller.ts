@@ -12,6 +12,8 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
+import { StartNewConversationDto } from './dto/start-new-conversation.dto';
+import { GetMessagesQueryDto } from './dto/get-messages-query.dto';
 
 @ApiTags('chat')
 @Controller('chat')
@@ -31,11 +33,8 @@ export class ChatController {
   @Post('conversation/new')
   @ApiOperation({ summary: 'Iniciar una nueva conversación' })
   @ApiResponse({ status: 201, description: 'Conversación creada' })
-  async startNewConversation(
-    @Body('studentId') studentId: string,
-    @Body('initialContext') initialContext?: string
-  ) {
-    return this.chatService.startNewConversation(studentId, initialContext);
+  async startNewConversation(@Body() dto: StartNewConversationDto) {
+    return this.chatService.startNewConversation(dto.studentId, dto.initialContext);
   }
 
   // Get the conversations of a student.
@@ -59,16 +58,14 @@ export class ChatController {
   async getConversationMessages(
     @Param('studentId') studentId: string,
     @Param('conversationId') conversationId: string,
-    @Query('page') page?: string,
-    @Query('limit') limit?: string,
-    @Query('fromEnd') fromEnd?: string
+    @Query() queryDto: GetMessagesQueryDto
   ) {
     return this.chatService.getChatHistory(
       studentId,
       conversationId,
-      page ? Number(page) : undefined,
-      limit ? Number(limit) : undefined,
-      fromEnd === 'true' || fromEnd === '1'
+      queryDto.page,
+      queryDto.limit,
+      queryDto.fromEnd
     );
   }
 

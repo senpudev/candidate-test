@@ -17,6 +17,7 @@ import { memoryStorage } from 'multer';
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { KnowledgeService } from './knowledge.service';
 import { IndexContentDto } from './dto/index-content.dto';
+import { IndexFromPdfDto } from './dto/index-from-pdf.dto';
 import { SearchQueryDto } from './dto/search-query.dto';
 import { UploadedFileDto } from './dto/uploaded-file.dto';
 import { SearchResult } from '@candidate-test/shared';
@@ -93,7 +94,7 @@ export class KnowledgeController {
   @ApiResponse({ status: 400, description: 'Archivo inválido o faltan parámetros' })
   async indexFromPdf(
     @UploadedFile() file: UploadedFileDto,
-    @Body('courseId') courseId: string
+    @Body() bodyDto: IndexFromPdfDto
   ) {
 
     if (!file) {
@@ -104,7 +105,7 @@ export class KnowledgeController {
       throw new BadRequestException('El archivo debe ser un PDF');
     }
 
-    if (!courseId || courseId.trim().length === 0) {
+    if (!bodyDto.courseId?.trim()) {
       throw new BadRequestException('courseId es requerido');
     }
 
@@ -115,7 +116,7 @@ export class KnowledgeController {
     const sourceFileName = file.originalname || 'uploaded.pdf';
 
     const text = await this.knowledgeService.parsePdf(file.buffer);
-    const result = await this.knowledgeService.indexCourseContent(courseId, text, sourceFileName);
+    const result = await this.knowledgeService.indexCourseContent(bodyDto.courseId, text, sourceFileName);
 
     return {
       ...result,
