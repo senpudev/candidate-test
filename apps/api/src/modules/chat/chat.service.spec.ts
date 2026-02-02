@@ -5,6 +5,7 @@ import { Types } from 'mongoose';
 import { ChatService } from './chat.service';
 import { AiService } from '../ai/ai.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
+import { StudentService } from '../student/student.service';
 import { ChatMessage } from './schemas/chat-message.schema';
 import { Conversation } from './schemas/conversation.schema';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -48,6 +49,10 @@ describe('ChatService', () => {
     searchSimilar: jest.fn().mockResolvedValue([]),
   };
 
+  const mockStudentService = {
+    getContextForChat: jest.fn().mockResolvedValue(undefined),
+  };
+
   beforeEach(async () => {
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => { });
     mockFindChain.lean.mockResolvedValue([]);
@@ -88,6 +93,10 @@ describe('ChatService', () => {
           provide: KnowledgeService,
           useValue: mockKnowledgeService,
         },
+        {
+          provide: StudentService,
+          useValue: mockStudentService,
+        },
       ],
     }).compile();
 
@@ -113,7 +122,7 @@ describe('ChatService', () => {
 
       expect(mockChatMessageModel.create).toHaveBeenCalledTimes(2); // user + assistant
       expect(mockChatMessageModel.create).toHaveBeenNthCalledWith(1, expect.objectContaining({ role: 'user', content: 'Hello' }));
-      expect(mockAiService.generateResponse).toHaveBeenCalledWith('Hello', [], undefined);
+      expect(mockAiService.generateResponse).toHaveBeenCalledWith('Hello', [], undefined, undefined);
       expect(result).toMatchObject({
         conversationId: expect.anything(),
         userMessage: expect.objectContaining({ content: 'Hello', role: 'user' }),
@@ -220,7 +229,7 @@ describe('ChatService', () => {
 
       const firstConv = await service.startNewConversation(STUDENT_ID);
       const firstIdStr = firstConv._id.toString();
-      
+
       // Add messages to the history of the first conversation (simulates sendMessage)
       const cachedHistory = await (service as any).getConversationHistory(firstIdStr);
       cachedHistory.push({ role: 'user', content: 'Hola' }, { role: 'assistant', content: 'Hola!' });
@@ -267,8 +276,40 @@ describe('ChatService', () => {
       });
     });
 
-    it.todo('should filter by conversationId when provided');
-    it.todo('should return messages in chronological order');
+    it('should filter by conversationId when provided', async () => {
+      const convId = new Types.ObjectId();
+      mockConversationModel.findOne.mockResolvedValue({
+        _id: convId,
+        studentId: new Types.ObjectId(STUDENT_ID),
+      });
+      mockChatMessageModel.countDocuments.mockResolvedValue(0);
+      mockFindChain.lean.mockResolvedValue([]);
+
+      await service.getHistory(STUDENT_ID, convId.toString());
+
+      expect(mockConversationModel.findOne).toHaveBeenCalledWith({
+        _id: convId,
+        studentId: new Types.ObjectId(STUDENT_ID),
+      });
+      expect(mockChatMessageModel.find).toHaveBeenCalledWith({ conversationId: convId });
+    });
+
+    it('should return messages in chronological order', async () => {
+      const convId = new Types.ObjectId();
+      mockConversationModel.findOne.mockResolvedValue({
+        _id: convId,
+        studentId: new Types.ObjectId(STUDENT_ID),
+      });
+      mockChatMessageModel.countDocuments.mockResolvedValue(2);
+      mockFindChain.lean.mockResolvedValue([
+        { _id: new Types.ObjectId(), role: 'user', content: 'first', createdAt: new Date('2024-01-01'), metadata: null },
+        { _id: new Types.ObjectId(), role: 'assistant', content: 'second', createdAt: new Date('2024-01-02'), metadata: null },
+      ]);
+
+      await service.getHistory(STUDENT_ID, convId.toString(), 1, 10);
+
+      expect(mockFindChain.sort).toHaveBeenCalledWith({ createdAt: 1 });
+    });
   });
 
   describe('deleteHistory', () => {
