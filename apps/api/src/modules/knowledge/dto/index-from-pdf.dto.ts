@@ -6,7 +6,7 @@ import { ApiProperty } from '@nestjs/swagger';
  * The file is handled separately via @UploadedFile().
  */
 export class IndexFromPdfDto {
-  @ApiProperty({ description: 'ID del curso a indexar (lista: GET /knowledge/courses)' })
+  @ApiProperty({ description: 'ID del curso a indexar (ObjectId de la colección Course)' })
   @IsString()
   @IsNotEmpty()
   courseId: string;
