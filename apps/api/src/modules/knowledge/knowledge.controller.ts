@@ -62,8 +62,8 @@ export class KnowledgeController {
     return result;
   }
 
-  // Upload, Parse and Index PDF
-  @Post('upload-pdf')
+  // Parse PDF and index chunks for a course
+  @Post('index-from-pdf')
   @HttpCode(HttpStatus.CREATED)
   @UseInterceptors(
     FileInterceptor('file', {
@@ -71,7 +71,7 @@ export class KnowledgeController {
     })
   )
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Subir PDF e indexarlo automáticamente' })
+  @ApiOperation({ summary: 'Indexar curso desde un PDF (parsear e indexar chunks)' })
   @ApiBody({
     schema: {
       type: 'object',
@@ -79,19 +79,19 @@ export class KnowledgeController {
         file: {
           type: 'string',
           format: 'binary',
-          description: 'Archivo PDF a indexar',
+          description: 'Archivo PDF a parsear e indexar',
         },
         courseId: {
           type: 'string',
-          description: 'ID del curso (obtener lista: GET /api/knowledge/courses)',
+          description: 'ID del curso (lista: GET /knowledge/courses)',
         },
       },
       required: ['file', 'courseId'],
     },
   })
-  @ApiResponse({ status: 201, description: 'PDF indexado exitosamente' })
+  @ApiResponse({ status: 201, description: 'Chunks indexados correctamente' })
   @ApiResponse({ status: 400, description: 'Archivo inválido o faltan parámetros' })
-  async uploadPDF(
+  async indexFromPdf(
     @UploadedFile() file: UploadedFileDto,
     @Body('courseId') courseId: string
   ) {
@@ -115,7 +115,7 @@ export class KnowledgeController {
     const sourceFileName = file.originalname || 'uploaded.pdf';
 
     const text = await this.knowledgeService.parsePdf(file.buffer);
-    const result = await this.knowledgeService.indexCourseContent(courseId,text,sourceFileName);
+    const result = await this.knowledgeService.indexCourseContent(courseId, text, sourceFileName);
 
     return {
       ...result,
@@ -137,7 +137,6 @@ export class KnowledgeController {
   @ApiOperation({ summary: 'Buscar contenido similar' })
   @ApiResponse({ status: 200, description: 'Resultados de busqueda' })
   async search(@Query() queryDto: SearchQueryDto): Promise<{ results: SearchResult[]; count: number }> {
-    // # Nota: Los query params se transforman automáticamente (string → number) con class-transformer
     const results = await this.knowledgeService.searchSimilar(queryDto.q, {
       courseId: queryDto.courseId,
       limit: queryDto.limit,
@@ -156,9 +155,7 @@ export class KnowledgeController {
     return this.knowledgeService.getStats();
   }
 
-  /**
-   * Eliminar chunks de un curso
-   */
+  // Delete chunks for a course
   @Delete('course/:courseId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Eliminar conocimiento de un curso' })
