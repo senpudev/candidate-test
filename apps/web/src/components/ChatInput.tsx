@@ -1,4 +1,4 @@
-import { useState, KeyboardEvent, forwardRef } from 'react';
+import { useState, KeyboardEvent, ChangeEvent, forwardRef } from 'react';
 import styled from 'styled-components';
 
 interface ChatInputProps {
@@ -24,6 +24,7 @@ interface ChatInputProps {
  */
 export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
   function ChatInput({ onSend, disabled = false, placeholder = 'Escribe tu mensaje...' }, ref) {
+    const MAX_LENGTH = 500;
     const [message, setMessage] = useState('');
 
     const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -31,6 +32,16 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
         e.preventDefault();
         handleSend();
       }
+    };
+
+    const handleChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+      const value = e.target.value;
+      setMessage(value);
+
+      // adjust textarea height based on content
+      const el = e.target;
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
     };
 
     const handleSend = () => {
@@ -47,13 +58,16 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
           <TextArea
             ref={ref}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
             disabled={disabled}
             rows={1}
+            maxLength={MAX_LENGTH}
           />
-          {/* TODO: Añadir contador de caracteres */}
+          <CharCounter>
+            {message.length}/{MAX_LENGTH}
+          </CharCounter>
         </InputWrapper>
 
         <SendButton onClick={handleSend} disabled={disabled || !message.trim()}>
@@ -99,8 +113,14 @@ const TextArea = styled.textarea`
     background: var(--color-background);
     cursor: not-allowed;
   }
+`;
 
-  /* TODO: Implementar auto-resize */
+const CharCounter = styled.div`
+  position: absolute;
+  right: 12px;
+  bottom: 6px;
+  font-size: 11px;
+  color: var(--color-text-secondary);
 `;
 
 const SendButton = styled.button`
