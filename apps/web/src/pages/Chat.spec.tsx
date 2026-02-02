@@ -71,7 +71,23 @@ describe('Chat', () => {
    * 📝 TODO: El candidato debe implementar estos tests
    */
   describe('Message sending', () => {
-    it.todo('should send message when clicking send button');
+    it('should send message when clicking send button', async () => {
+      renderWithProviders(<Chat studentId="test-id" />);
+
+      const textarea = screen.getByPlaceholderText('Escribe tu pregunta...');
+      await userEvent.type(textarea, 'Hola');
+
+      const sendButton = screen.getByRole('button', { name: /➤/ });
+      await userEvent.click(sendButton);
+
+      await waitFor(() => {
+        expect(api.sendChatMessage).toHaveBeenCalledWith({
+          studentId: 'test-id',
+          message: 'Hola',
+          conversationId: undefined,
+        });
+      });
+    });
     it.todo('should send message when pressing Enter');
     it.todo('should show user message immediately (optimistic update)');
     it.todo('should show assistant response after API call');

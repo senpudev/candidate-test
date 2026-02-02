@@ -103,9 +103,50 @@ describe('Dashboard', () => {
   /**
    * 📝 TODO: El candidato debe implementar estos tests
    */
-  it.todo('should show error state when API fails');
-  it.todo('should render course cards');
-  it.todo('should show empty state when no courses');
-  it.todo('should render activity chart placeholder');
-  it.todo('should be accessible (a11y)');
+  it('should show error state when API fails', async () => {
+    (api.getDashboard as jest.Mock).mockRejectedValueOnce(new Error('Network error'));
+
+    renderWithProviders(<Dashboard studentId="507f1f77bcf86cd799439011" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Error al cargar el dashboard')).toBeInTheDocument();
+    });
+  });
+
+  it('should render course cards when courses are returned', async () => {
+    renderWithProviders(<Dashboard studentId="507f1f77bcf86cd799439011" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('React desde Cero')).toBeInTheDocument();
+    });
+  });
+
+  it('should show empty state when no courses', async () => {
+    (api.getCourses as jest.Mock).mockResolvedValueOnce([]);
+
+    renderWithProviders(<Dashboard studentId="507f1f77bcf86cd799439011" />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText('No tienes cursos todavía. ¡Explora el catálogo!')
+      ).toBeInTheDocument();
+    });
+  });
+
+  it('should render activity chart placeholder', async () => {
+    renderWithProviders(<Dashboard studentId="507f1f77bcf86cd799439011" />);
+
+    await waitFor(() => {
+      expect(screen.getByText('Gráfico de Actividad')).toBeInTheDocument();
+    });
+  });
+
+  it('should have a main heading for the student', async () => {
+    renderWithProviders(<Dashboard studentId="507f1f77bcf86cd799439011" />);
+
+    const heading = await screen.findByRole('heading', {
+      name: /¡Hola, María García!/i,
+    });
+    expect(heading.tagName).toBe('H1');
+  });
 });
