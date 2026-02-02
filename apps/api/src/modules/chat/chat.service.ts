@@ -139,9 +139,7 @@ export class ChatService {
     };
   }
 
-  /**
-   * Inicia una nueva conversación para el estudiante
-   */
+  // Start a new conversation for a student.
   async startNewConversation(studentId: string, initialContext?: string) {
     const conversation = await this.createConversation(studentId);
     const conversationIdStr = conversation._id.toString();
@@ -158,7 +156,7 @@ export class ChatService {
 
     this.conversationCache.set(conversationIdStr, history);
 
-    // Marcar conversaciones anteriores como inactivas
+    // Mark previous conversations as inactive
     await this.conversationModel.updateMany(
       { studentId: new Types.ObjectId(studentId), _id: { $ne: conversation._id } },
       { isActive: false }
@@ -169,8 +167,8 @@ export class ChatService {
     return conversation;
   }
 
-  // Return list of conversations of a student (without messages).
-  private async getConversations(studentId: string) {
+  /** List of conversations for a student (no messages). */
+  async getConversations(studentId: string) {
     const conversations = await this.conversationModel
       .find({ studentId: new Types.ObjectId(studentId) })
       .sort({ lastMessageAt: -1 })
@@ -184,8 +182,8 @@ export class ChatService {
     };
   }
 
-  // Paginated messages. If fromEnd=true, page 1 = last N messages (always up to limit), page 2 = next N older messages.
-  private async getChatHistory(
+  /** Paginated messages. If fromEnd=true, page 1 = last N messages. */
+  async getChatHistory(
     studentId: string,
     conversationId: string,
     page: number = 1,
@@ -224,26 +222,6 @@ export class ChatService {
       page: safePage,
       limit: safeLimit,
     };
-  }
-
-  // logic splitted in two methods to follow the single responsibility
-  async getHistory(
-    studentId: string,
-    conversationId?: string,
-    page?: number,
-    limit?: number,
-    fromEnd?: boolean
-  ) {
-    if (!conversationId) {
-      return this.getConversations(studentId);
-    }
-    return this.getChatHistory(
-      studentId,
-      conversationId,
-      page ?? 1,
-      limit ?? 10,
-      fromEnd ?? false
-    );
   }
 
   /**

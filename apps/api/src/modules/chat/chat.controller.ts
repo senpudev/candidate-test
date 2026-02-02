@@ -44,7 +44,7 @@ export class ChatController {
   @ApiParam({ name: 'studentId', description: 'ID del estudiante' })
   @ApiResponse({ status: 200, description: 'Lista de conversaciones con id, title, lastMessageAt, messageCount' })
   async getConversations(@Param('studentId') studentId: string) {
-    return this.chatService.getHistory(studentId);
+    return this.chatService.getConversations(studentId);
   }
 
   // Get the messages of a conversation (paginated).
@@ -63,7 +63,7 @@ export class ChatController {
     @Query('limit') limit?: string,
     @Query('fromEnd') fromEnd?: string
   ) {
-    return this.chatService.getHistory(
+    return this.chatService.getChatHistory(
       studentId,
       conversationId,
       page ? Number(page) : undefined,

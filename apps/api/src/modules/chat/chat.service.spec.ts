@@ -249,7 +249,7 @@ describe('ChatService', () => {
     });
   });
 
-  describe('getHistory', () => {
+  describe('getChatHistory', () => {
     it('should return paginated chat history (page, limit, total)', async () => {
       const convId = new Types.ObjectId();
       mockConversationModel.findOne.mockResolvedValue({
@@ -263,7 +263,7 @@ describe('ChatService', () => {
       ];
       mockFindChain.lean.mockResolvedValue(page2Messages);
 
-      const result = await service.getHistory(STUDENT_ID, convId.toString(), 2, 10);
+      const result = await service.getChatHistory(STUDENT_ID, convId.toString(), 2, 10);
 
       expect(mockChatMessageModel.countDocuments).toHaveBeenCalledWith({ conversationId: convId });
       expect(mockFindChain.skip).toHaveBeenCalledWith(10); // (page 2 - 1) * 10
@@ -285,7 +285,7 @@ describe('ChatService', () => {
       mockChatMessageModel.countDocuments.mockResolvedValue(0);
       mockFindChain.lean.mockResolvedValue([]);
 
-      await service.getHistory(STUDENT_ID, convId.toString());
+      await service.getChatHistory(STUDENT_ID, convId.toString());
 
       expect(mockConversationModel.findOne).toHaveBeenCalledWith({
         _id: convId,
@@ -306,7 +306,7 @@ describe('ChatService', () => {
         { _id: new Types.ObjectId(), role: 'assistant', content: 'second', createdAt: new Date('2024-01-02'), metadata: null },
       ]);
 
-      await service.getHistory(STUDENT_ID, convId.toString(), 1, 10);
+      await service.getChatHistory(STUDENT_ID, convId.toString(), 1, 10);
 
       expect(mockFindChain.sort).toHaveBeenCalledWith({ createdAt: 1 });
     });
