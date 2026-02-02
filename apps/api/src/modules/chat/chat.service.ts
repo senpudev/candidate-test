@@ -103,7 +103,15 @@ export class ChatService {
       metadata.chunkSources = chunkSources;
     }
 
-    // Save assistant message and update conversation
+    // Save assistant message and update conversation (set title from first user message)
+    const isFirstMessage = conversation.messageCount === 0;
+    const updatePayload: Record<string, unknown> = {
+      lastMessageAt: new Date(),
+      $inc: { messageCount: 2 },
+    };
+    if (isFirstMessage) {
+      updatePayload.title = this.deriveTitleFromFirstMessage(message);
+    }
     const [assistantMessage] = await Promise.all([
       this.chatMessageModel.create({
         conversationId: conversation._id,
@@ -111,10 +119,7 @@ export class ChatService {
         content: aiResponse.content,
         metadata,
       }),
-      this.conversationModel.findByIdAndUpdate(conversation._id, {
-        lastMessageAt: new Date(),
-        $inc: { messageCount: 2 },
-      }),
+      this.conversationModel.findByIdAndUpdate(conversation._id, updatePayload),
     ]);
 
     // Update cache for next message
@@ -277,6 +282,14 @@ export class ChatService {
   async streamResponse(dto: SendMessageDto) {
     // TODO: Implementar
     throw new Error('Not implemented');
+  }
+
+  // Truncate the first message to 20 characters and add ellipsis if it's longer.
+  private deriveTitleFromFirstMessage(message: string): string {
+    const trimmed = message.trim();
+    if (!trimmed) return 'Nueva conversación';
+    const maxLen = 20;
+    return trimmed.length > maxLen ? trimmed.slice(0, maxLen - 3) + '...' : trimmed;
   }
 
   /**
