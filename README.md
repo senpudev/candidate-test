@@ -205,7 +205,7 @@ candidate-test/
 3. **Modulo AI** ([`apps/api/src/modules/ai/`](apps/api/src/modules/ai/)):
    - [x] `[Must Have]` Integracion real con OpenAI API
      - Archivo: [`ai.service.ts`](apps/api/src/modules/ai/ai.service.ts)
-   - [ ] `[Should Have]` Sistema de contexto personalizado por estudiante
+   - [X] `[Should Have]` Sistema de contexto personalizado por estudiante
      - Archivo: [`ai.service.ts`](apps/api/src/modules/ai/ai.service.ts)
 
 > **Nota sobre Streaming:** El streaming de respuestas (SSE/WebSocket) está clasificado como "Should Have". Si implementas streaming, hazlo en `ai.service.ts` (`generateStreamResponse`) y exponlo desde `chat.controller.ts`.
