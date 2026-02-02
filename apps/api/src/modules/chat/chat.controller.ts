@@ -18,10 +18,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 export class ChatController {
   constructor(private readonly chatService: ChatService) { }
 
-  /**
-   * ✅ PARCIALMENTE IMPLEMENTADO - Enviar mensaje al chat
-   * La estructura está lista, pero el candidato debe completar la integración con OpenAI
-   */
+  // Send a message to the chat with AI (OpenAI).
   @Post('message')
   @ApiOperation({ summary: 'Enviar mensaje al chat con IA' })
   @ApiResponse({ status: 201, description: 'Mensaje enviado y respuesta generada' })
@@ -30,9 +27,7 @@ export class ChatController {
     return this.chatService.sendMessage(dto);
   }
 
-  /**
-   * ✅ IMPLEMENTADO - Iniciar nueva conversación
-   */
+  // Start a new conversation.
   @Post('conversation/new')
   @ApiOperation({ summary: 'Iniciar una nueva conversación' })
   @ApiResponse({ status: 201, description: 'Conversación creada' })
@@ -43,6 +38,7 @@ export class ChatController {
     return this.chatService.startNewConversation(studentId, initialContext);
   }
 
+  // Get the conversations of a student.
   @Get('conversations/:studentId')
   @ApiOperation({ summary: 'Listar conversaciones del estudiante' })
   @ApiParam({ name: 'studentId', description: 'ID del estudiante' })
@@ -51,6 +47,7 @@ export class ChatController {
     return this.chatService.getHistory(studentId);
   }
 
+  // Get the messages of a conversation (paginated).
   @Get('conversations/:studentId/:conversationId/messages')
   @ApiOperation({ summary: 'Obtener mensajes de una conversación (paginado)' })
   @ApiParam({ name: 'studentId', description: 'ID del estudiante' })
@@ -75,9 +72,7 @@ export class ChatController {
     );
   }
 
-  /**
-   * Eliminar una conversación y sus mensajes.
-   */
+  // Delete a conversation and its messages.
   @Delete('conversations/:studentId/:conversationId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Eliminar conversación y sus mensajes' })
