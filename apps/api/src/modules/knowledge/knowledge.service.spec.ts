@@ -4,7 +4,6 @@ import { getModelToken } from '@nestjs/mongoose';
 import { Types } from 'mongoose';
 import { KnowledgeService } from './knowledge.service';
 import { KnowledgeChunk } from './schemas/knowledge-chunk.schema';
-import { Course } from '../student/schemas/course.schema';
 import { AiService } from '../ai/ai.service';
 
 describe('KnowledgeService', () => {
@@ -17,12 +16,6 @@ describe('KnowledgeService', () => {
     countDocuments: jest.fn(),
     distinct: jest.fn(),
     deleteMany: jest.fn(),
-  };
-
-  const mockCourseModel = {
-    find: jest.fn().mockReturnThis(),
-    select: jest.fn().mockReturnThis(),
-    lean: jest.fn(),
   };
 
   const mockAiService = {
@@ -40,10 +33,6 @@ describe('KnowledgeService', () => {
         {
           provide: getModelToken(KnowledgeChunk.name),
           useValue: mockKnowledgeChunkModel,
-        },
-        {
-          provide: getModelToken(Course.name),
-          useValue: mockCourseModel,
         },
         {
           provide: AiService,

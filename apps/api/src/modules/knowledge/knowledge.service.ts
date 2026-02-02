@@ -4,14 +4,12 @@ import { Model, Types } from 'mongoose';
 import { AiService } from '../ai/ai.service';
 import { KnowledgeChunk, KnowledgeChunkDocument } from './schemas/knowledge-chunk.schema';
 import { SearchResult } from '@candidate-test/shared';
-import { Course, CourseDocument } from '../student/schemas/course.schema';
 @Injectable()
 export class KnowledgeService {
   private readonly logger = new Logger(KnowledgeService.name);
 
   constructor(
     @InjectModel(KnowledgeChunk.name) private knowledgeChunkModel: Model<KnowledgeChunkDocument>,
-    @InjectModel(Course.name) private courseModel: Model<CourseDocument>,
     private readonly aiService: AiService
   ) { }
 
@@ -205,12 +203,6 @@ export class KnowledgeService {
     }
 
     return chunks;
-  }
-
-  // Get All Courses (Id + titles)
-  async getCourses(): Promise<{ id: string; title: string }[]> {
-    const courses = await this.courseModel.find().select('_id title').lean();
-    return courses.map((c) => ({ id: (c._id as Types.ObjectId).toString(), title: c.title }));
   }
 
   /**

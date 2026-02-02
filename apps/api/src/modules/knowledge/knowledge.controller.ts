@@ -27,17 +27,6 @@ import { SearchResult } from '@candidate-test/shared';
 export class KnowledgeController {
   constructor(private readonly knowledgeService: KnowledgeService) { }
 
-  // Get All Courses (Id + titles)
-  @Get('courses')
-  @ApiOperation({
-    summary: 'Listar cursos para indexar',
-    description: 'Devuelve id y título de cada curso disponible.',
-  })
-  @ApiResponse({ status: 200, description: 'Lista de cursos con id y title' })
-  async getCourses() {
-    return this.knowledgeService.getCourses();
-  }
-
   /**
    * 📝 TODO: Implementar endpoint para indexar contenido
    *
@@ -84,7 +73,7 @@ export class KnowledgeController {
         },
         courseId: {
           type: 'string',
-          description: 'ID del curso (lista: GET /knowledge/courses)',
+          description: 'ID del curso a indexar (ObjectId de la colección Course)',
         },
       },
       required: ['file', 'courseId'],
