@@ -163,10 +163,7 @@ Reglas:
   }
 
   /**
-   * 📝 TODO: Implementar streaming de respuestas
-   *
-   * El candidato debe implementar streaming real con OpenAI.
-   * Consultar la documentación oficial de OpenAI para la implementación.
+   * TODO: Implement streaming responses
    */
   async *generateStreamResponse(
     userMessage: string,

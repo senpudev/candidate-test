@@ -85,25 +85,6 @@ export class ChatController {
   }
 
   /**
-   * 📝 TODO: Implementar endpoint de streaming
-   *
-   * El candidato debe elegir e implementar:
-   * - SSE: Usar @Sse() decorator y retornar Observable
-   * - WebSocket: Crear un Gateway separado
-   *
-   * El endpoint debe:
-   * - Enviar la respuesta del chat token por token
-   * - Manejar errores y timeout
-   * - Cerrar la conexión al terminar
+   * TODO: Implement streaming endpoint
    */
-  // TODO: Descomentar y completar según la opción elegida
-  //
-  // Opción SSE:
-  // @Sse('stream/:conversationId')
-  // @ApiOperation({ summary: 'Stream de respuestas del chat' })
-  // streamResponse(@Param('conversationId') conversationId: string) {
-  //   return this.chatService.streamResponse(...);
-  // }
-  //
-  // Opción WebSocket: Crear chat.gateway.ts
 }

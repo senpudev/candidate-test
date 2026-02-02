@@ -158,8 +158,7 @@ export class KnowledgeService {
   }
 
   /**
-   * Helper: Calcular similitud coseno entre dos vectores
-   * Este metodo ya esta implementado para ayudar al candidato
+   * Helper: Calculate cosine similarity between two vectors
    */
   cosineSimilarity(vecA: number[], vecB: number[]): number {
     if (vecA.length !== vecB.length) {
@@ -181,8 +180,7 @@ export class KnowledgeService {
   }
 
   /**
-   * Helper: Dividir texto en chunks
-   * El candidato puede usar este metodo o implementar su propia logica
+   * Helper: Split text into chunks
    */
   splitIntoChunks(text: string, maxChunkSize: number = 1000): string[] {
     const sentences = text.split(/(?<=[.!?])\s+/);
