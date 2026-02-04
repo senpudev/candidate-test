@@ -37,6 +37,42 @@
         "jest": true
       },
       "rules": {}
+    },
+    {
+      "files": ["apps/api/**/*.ts", "apps/api/**/*.js"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              "react",
+              "react-dom",
+              "react-router-dom",
+              "@tanstack/react-query",
+              "axios",
+              "styled-components",
+              "lucide-react"
+            ],
+            "message": "API no debe importar dependencias solo de frontend. Ver docs/dependencies-audit.md."
+          }
+        ]
+      }
+    },
+    {
+      "files": ["apps/web/**/*.ts", "apps/web/**/*.tsx", "apps/web/**/*.js", "apps/web/**/*.jsx"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["@nestjs/*", "mongoose", "openai", "class-validator", "class-transformer", "pdf-parse", "reflect-metadata", "rxjs"],
+                "message": "Web no debe importar dependencias solo de backend. Ver docs/dependencies-audit.md."
+              }
+            ]
+          }
+        ]
+      }
     }
   ]
 }
