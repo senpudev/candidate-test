@@ -170,7 +170,7 @@ Si tuviera más tiempo, implementaría:
 
 2. **Hacer el frontend completamente responsive:** Adaptar el layout, cards y tipografía para móviles y tablets (breakpoints, grids flexibles, ocultar/compactar secciones secundarias) para que el dashboard y el chat funcionen bien en pantallas de todos los tamaños.
 
-3. **Afinar dependencias**: Revisar que cada app (API, web) importe solo las dependencias que realmente necesita (evitar paquetes “globales” en package.json que solo usa una parte) para reducir peso y superficie. 
+3. **Afinar dependencias**: Revisar que cada app (API, web) importe solo las dependencias que realmente necesita (evitar paquetes “globales” en package.json que solo usa una parte) para reducir peso y superficie. Se ha documentado una auditoría y restricciones ESLint en [docs/dependencies-audit.md](docs/dependencies-audit.md). 
 
 4. **Ordenar tipos segun contexto**: Centralizar interfaces y tipos donde tenga sentido: libs/shared para modelos de dominio y contratos de API reutilizables (lo que realmente viaja entre backend y frontend), apps/web para tipos puramente de UI (view models, estados de componentes, formatos ya transformados) y apps/api para detalles internos de backend (DTOs, tipos de persistencia); eliminar duplicados y mapear explícitamente entre “tipo de dominio” y “tipo de vista” cuando haga falta.
 
