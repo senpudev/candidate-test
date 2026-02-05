@@ -8,8 +8,11 @@ import {
   Query,
   HttpCode,
   HttpStatus,
+  Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiParam, ApiQuery } from '@nestjs/swagger';
+import { Response } from 'express';
+import { Readable } from 'stream';
 import { ChatService } from './chat.service';
 import { SendMessageDto } from './dto/send-message.dto';
 import { StartNewConversationDto } from './dto/start-new-conversation.dto';
@@ -27,6 +30,27 @@ export class ChatController {
   @ApiResponse({ status: 400, description: 'Datos inválidos' })
   async sendMessage(@Body() dto: SendMessageDto) {
     return this.chatService.sendMessage(dto);
+  }
+
+  // Single endpoint to send a message and receive a streaming response (NDJSON in body).
+  @Post('message/stream')
+  @ApiOperation({ summary: 'Enviar mensaje y recibir respuesta en streaming (NDJSON en body)' })
+  @ApiResponse({ status: 200, description: 'Stream NDJSON: líneas { type: "chunk", delta } y { type: "done", ... }' })
+  @ApiResponse({ status: 400, description: 'Datos inválidos' })
+  async streamMessageBody(
+    @Body() dto: SendMessageDto,
+    @Res({ passthrough: false }) res: Response,
+  ) {
+    res.setHeader('Content-Type', 'application/x-ndjson');
+    const chatService = this.chatService;
+    const readable = Readable.from(
+      (async function* () {
+        for await (const event of chatService.streamMessageBody(dto)) {
+          yield JSON.stringify(event) + '\n';
+        }
+      })(),
+    );
+    readable.pipe(res);
   }
 
   // Start a new conversation.
@@ -84,7 +108,4 @@ export class ChatController {
     return this.chatService.deleteHistory(studentId, conversationId);
   }
 
-  /**
-   * TODO: Implement streaming endpoint
-   */
 }

@@ -13,6 +13,13 @@ interface MessageHistory {
   content: string;
 }
 
+type StudentChatContext = {
+  name?: string;
+  currentCourse?: string;
+  progress?: number;
+  coursesInProgress?: { title: string; progress: number }[];
+};
+
 @Injectable()
 export class ChatService {
   private readonly logger = new Logger(ChatService.name);
@@ -54,40 +61,16 @@ export class ChatService {
       content: message,
     });
 
-    // Search Relevant chunks based on user message
-    let relevantContext: string[] = [];
-    let chunkSources: { source: string; count: number }[] = [];
-    try {
-      const searchResults = await this.knowledgeService.searchSimilar(message, {
-        limit: 3, // Top 3 relevant chunks
-        minScore: 0.5, // Similarity threshold
-      });
-      relevantContext = searchResults.map((result) => result.content);
-      // Group by sourceFile for UI: "(3) react-hooks.pdf, (1) mongodb-fundamentals.pdf" (own addition)
-      const bySource = new Map<string, number>();
-      for (const r of searchResults) {
-        const name = r.sourceFile || 'documento';
-        bySource.set(name, (bySource.get(name) ?? 0) + 1);
-      }
-      chunkSources = Array.from(bySource.entries()).map(([source, count]) => ({ source, count }));
-      this.logger.debug(
-        `Found ${relevantContext.length} relevant context chunks for RAG (sources: ${chunkSources.map((s) => `${s.source} (${s.count})`).join(', ') || 'none'})`
-      );
-    } catch (error) {
-      this.logger.warn(`RAG search failed: ${error.message}`);
-    }
-
-    let studentContext: { name?: string; currentCourse?: string; progress?: number } | undefined;
-    try {
-      studentContext = await this.studentService.getContextForChat(studentId);
-    } catch (err) {
-      this.logger.warn(`Student context for chat failed: ${err?.message}`);
-    }
+    const {
+      relevantContext,
+      chunkSources,
+      studentContext,
+    } = await this.buildContextForMessage(studentId, message, 'send');
 
     const aiResponse = await this.aiService.generateResponse(
       message,
       history,
-      relevantContext.length > 0 ? relevantContext : undefined,
+      relevantContext,
       studentContext
     );
 
@@ -99,7 +82,7 @@ export class ChatService {
       tokensUsed: aiResponse.tokensUsed,
       model: aiResponse.model,
     };
-    if (chunkSources.length > 0) {
+    if (chunkSources && chunkSources.length > 0) {
       metadata.chunkSources = chunkSources;
     }
 
@@ -252,14 +235,168 @@ export class ChatService {
     this.logger.log(`Historial eliminado: conversación ${conversationId}`);
   }
 
-  /**
-   * 📝 TODO: Implementar streaming de respuestas
-   *
-   * El candidato debe elegir e implementar SSE o WebSocket.
-   */
-  async streamResponse(dto: SendMessageDto) {
-    // TODO: Implementar
-    throw new Error('Not implemented');
+  // Generate a streaming response from the OpenAI API. stream: true
+  async *streamMessageBody(dto: SendMessageDto): AsyncGenerator<
+    { type: 'chunk'; delta: string } | { type: 'done'; conversationId: string; userMessage: any; assistantMessage: any } | { type: 'error'; message: string }
+  > {
+    const { studentId, message, conversationId } = dto;
+
+    const conversation =
+      (conversationId ? await this.conversationModel.findById(conversationId) : null) ??
+      (await this.createConversation(studentId));
+    const conversationIdStr = conversation._id.toString();
+
+    const isFirstMessage = conversation.messageCount === 0;
+    const updatePayload: Record<string, unknown> = {
+      lastMessageAt: new Date(),
+      $inc: { messageCount: 1 },
+    };
+    if (isFirstMessage) {
+      updatePayload.title = this.deriveTitleFromFirstMessage(message);
+    }
+
+    const [userMessage] = await Promise.all([
+      this.chatMessageModel.create({
+        conversationId: conversation._id,
+        role: 'user',
+        content: message,
+      }),
+      this.conversationModel.findByIdAndUpdate(conversation._id, updatePayload),
+    ]);
+
+    const allMessages = await this.chatMessageModel
+      .find({ conversationId: conversation._id })
+      .sort({ createdAt: 1 })
+      .lean();
+    const history: MessageHistory[] = [];
+    for (const m of allMessages) {
+      if (m._id.toString() === userMessage._id.toString()) break;
+      history.push({ role: m.role, content: m.content });
+    }
+
+    const {
+      relevantContext,
+      chunkSources,
+      studentContext,
+    } = await this.buildContextForMessage(studentId, message, 'stream-body');
+
+    let fullAssistantContent = '';
+    try {
+      for await (const delta of this.aiService.generateStreamResponse(
+        message,
+        history,
+        relevantContext,
+        studentContext
+      )) {
+        fullAssistantContent += delta;
+        yield { type: 'chunk', delta };
+      }
+    } catch (error) {
+      this.logger.error(`OpenAI stream error: ${(error as Error)?.message}`);
+      yield { type: 'error', message: (error as Error)?.message ?? 'Error generando respuesta' };
+      return;
+    }
+
+    const metadata: { chunkSources?: { source: string; count: number }[] } = {};
+    if (chunkSources && chunkSources.length > 0) metadata.chunkSources = chunkSources;
+
+    const [assistantMessage] = await Promise.all([
+      this.chatMessageModel.create({
+        conversationId: conversation._id,
+        role: 'assistant',
+        content: fullAssistantContent,
+        metadata,
+      }),
+      this.conversationModel.findByIdAndUpdate(conversation._id, {
+        lastMessageAt: new Date(),
+        $inc: { messageCount: 1 },
+      }),
+    ]);
+
+    const updatedMessages = await this.chatMessageModel
+      .find({ conversationId: conversation._id })
+      .sort({ createdAt: 1 })
+      .lean();
+    this.conversationCache.set(
+      conversationIdStr,
+      updatedMessages.map((m) => ({ role: m.role, content: m.content })).slice(-20)
+    );
+
+    yield {
+      type: 'done',
+      conversationId: conversationIdStr,
+      userMessage: {
+        id: userMessage._id.toString(),
+        content: userMessage.content,
+        createdAt: (userMessage as any).createdAt,
+      },
+      assistantMessage: {
+        id: assistantMessage._id.toString(),
+        content: assistantMessage.content,
+        createdAt: (assistantMessage as any).createdAt,
+        metadata: assistantMessage.metadata,
+      },
+    };
+  }
+
+  // Helper to build the IA context (RAG + student context)
+  private async buildContextForMessage(
+    studentId: string,
+    message: string,
+    scope: 'send' | 'stream-body'
+  ): Promise<{
+    relevantContext?: string[];
+    chunkSources?: { source: string; count: number }[];
+    studentContext?: StudentChatContext;
+  }> {
+    let relevantContext: string[] = [];
+    let chunkSources: { source: string; count: number }[] = [];
+
+    try {
+      const searchResults = await this.knowledgeService.searchSimilar(message, {
+        limit: 3, // Top 3 relevant chunks
+        minScore: 0.5, // Similarity threshold
+      });
+      relevantContext = searchResults.map((result) => result.content);
+
+      const bySource = new Map<string, number>();
+      for (const r of searchResults) {
+        const name = r.sourceFile || 'documento';
+        bySource.set(name, (bySource.get(name) ?? 0) + 1);
+      }
+      chunkSources = Array.from(bySource.entries()).map(([source, count]) => ({
+        source,
+        count,
+      }));
+
+      this.logger.debug(
+        `Found ${relevantContext.length} relevant context chunks for RAG (${scope}; sources: ${chunkSources
+          .map((s) => `${s.source} (${s.count})`)
+          .join(', ') || 'none'})`
+      );
+    } catch (error) {
+      const messageText =
+        error instanceof Error ? error.message : String(error);
+      this.logger.warn(
+        `RAG search failed${scope === 'stream-body' ? ' (stream body)' : ''}: ${messageText}`
+      );
+    }
+
+    let studentContext: StudentChatContext | undefined;
+    try {
+      studentContext = await this.studentService.getContextForChat(studentId);
+    } catch (err) {
+      const messageText = err instanceof Error ? err.message : String(err);
+      this.logger.warn(
+        `Student context for chat failed${scope === 'stream-body' ? ' (stream body)' : ''}: ${messageText}`
+      );
+    }
+
+    return {
+      relevantContext: relevantContext.length > 0 ? relevantContext : undefined,
+      chunkSources: chunkSources.length > 0 ? chunkSources : undefined,
+      studentContext,
+    };
   }
 
   // Truncate the first message to 20 characters and add ellipsis if it's longer.

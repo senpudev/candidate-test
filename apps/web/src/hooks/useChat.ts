@@ -27,6 +27,7 @@ export function useChat({ studentId, onError }: UseChatOptions) {
   const chatInputRef = useRef<HTMLTextAreaElement>(null);
   const skipScrollRestoreRef = useRef(false);
   const scrollRestoreRef = useRef<{ scrollHeight: number; scrollTop: number } | null>(null);
+  const streamingAbortRef = useRef<AbortController | null>(null);
 
   const { data: conversationsData } = useQuery({
     queryKey: chatQueryKeys.conversations(studentId),
@@ -211,6 +212,98 @@ export function useChat({ studentId, onError }: UseChatOptions) {
     return d.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
   }, []);
 
+  // Cleanup: cancelar stream al desmontar
+  useEffect(() => {
+    return () => {
+      if (streamingAbortRef.current) {
+        streamingAbortRef.current.abort();
+      }
+    };
+  }, []);
+
+  const sendWithStreaming = useCallback(
+    (message: string) => {
+      const trimmed = message.trim();
+      if (!trimmed) return;
+      if (isStreaming) return;
+
+      const tempUserId = `user-temp-${Date.now()}`;
+      const userMessage: Message = {
+        id: tempUserId,
+        role: 'user',
+        content: trimmed,
+        timestamp: new Date(),
+      };
+      setMessages((prev) => [...prev, userMessage]);
+      setIsTyping(true);
+      setIsStreaming(true);
+
+      const tempAssistantId = `assistant-temp-${Date.now()}`;
+
+      const controller = api.streamChatResponse({
+        studentId,
+        message: trimmed,
+        conversationId: conversationId ?? undefined,
+        onChunk: (delta) => {
+          setMessages((prev) => {
+            const next = [...prev];
+            const idx = next.findIndex((m) => m.id === tempAssistantId);
+            if (idx === -1) {
+              next.push({
+                id: tempAssistantId,
+                role: 'assistant',
+                content: delta,
+                timestamp: new Date(),
+              });
+            } else {
+              const existing = next[idx];
+              next[idx] = { ...existing, content: existing.content + delta };
+            }
+            return next;
+          });
+        },
+        onDone: (payload) => {
+          const newConvId = normalizeId(
+            payload.conversationId?.toString?.() ?? payload.conversationId
+          );
+          const finalAssistant = payload.assistantMessage;
+
+          if (!conversationId && newConvId) setConversationId(newConvId);
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === tempAssistantId
+                ? toMessage({
+                  id: String(finalAssistant.id ?? finalAssistant._id),
+                  role: 'assistant',
+                  content: finalAssistant.content,
+                  createdAt: finalAssistant.createdAt,
+                  metadata: finalAssistant.metadata,
+                })
+                : m
+            )
+          );
+
+          setMessagesTotal((prev) => prev + 2);
+          setIsTyping(false);
+          setIsStreaming(false);
+          queryClient.refetchQueries({ queryKey: chatQueryKeys.conversations(studentId) });
+          setTimeout(() => chatInputRef.current?.focus(), 0);
+        },
+        onError: (err) => {
+          setIsTyping(false);
+          setIsStreaming(false);
+          setMessages((prev) => prev.filter((m) => m.id !== tempUserId));
+          onError?.(err);
+          setTimeout(() => chatInputRef.current?.focus(), 0);
+        },
+      });
+
+      streamingAbortRef.current = controller;
+    },
+    [studentId, conversationId, isStreaming, queryClient, onError]
+  );
+
   return {
     messages,
     conversationId,
@@ -223,7 +316,7 @@ export function useChat({ studentId, onError }: UseChatOptions) {
     loadOlderMessages,
     selectConversation,
     sendMessage: sendMutation.mutate,
-    sendWithStreaming: sendMutation.mutate,
+    sendWithStreaming,
     startNewConversation: () => startNewConversationMutation.mutate(),
     handleDeleteConversation,
     clearMessages: () => setMessages([]),

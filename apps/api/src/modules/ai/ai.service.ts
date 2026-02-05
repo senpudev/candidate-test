@@ -162,21 +162,92 @@ Reglas:
     }
   }
 
-  /**
-   * TODO: Implement streaming responses
-   */
+  // Generate a streaming response from the OpenAI API. stream: true
   async *generateStreamResponse(
     userMessage: string,
-    history: MessageHistory[] = []
+    history: MessageHistory[] = [],
+    relevantContext?: string[],
+    studentContext?: StudentContext
   ): AsyncGenerator<string> {
-    // TODO: Implementar streaming real con OpenAI
-    // Placeholder actual - simula streaming
-    const placeholder = this.generatePlaceholderResponse('no-config');
-    const words = placeholder.content.split(' ');
+    const useRAG = relevantContext && relevantContext.length > 0;
+    this.logger.debug(
+      `Generating STREAMING response ${useRAG ? 'with RAG' : 'basic'} for: "${userMessage.substring(
+        0,
+        50
+      )}..."`
+    );
 
-    for (const word of words) {
-      yield word + ' ';
-      await new Promise((resolve) => setTimeout(resolve, 50));
+    // If the client is not configured, we return the same placeholder but in "streaming mode"
+    if (!this.openai) {
+      this.logger.warn('OpenAI client not initialized, streaming placeholder response');
+      const placeholder = this.generatePlaceholderResponse('no-config');
+      const words = placeholder.content.split(' ');
+      for (const word of words) {
+        yield word + ' ';
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return;
+    }
+
+    if (this.isRateLimited()) {
+      this.logger.warn('OpenAI rate limit reached, streaming placeholder response');
+      const placeholder = this.generatePlaceholderResponse('rate-limit');
+      const words = placeholder.content.split(' ');
+      for (const word of words) {
+        yield word + ' ';
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      return;
+    }
+    this.recordRequest();
+
+    try {
+      let systemPrompt = studentContext
+        ? this.buildContextualSystemPrompt(studentContext)
+        : this.baseSystemPrompt;
+
+      if (useRAG) {
+        const contextText = relevantContext!
+          .map((ctx, i) => `[Contexto ${i + 1}]: ${ctx}`)
+          .join('\n\n');
+        systemPrompt += `\n\n--- CONTEXTO RELEVANTE DEL CURSO ---\n${contextText}\n\nUsa este contexto para dar respuestas más precisas y específicas sobre el contenido del curso.`;
+        this.logger.debug(`RAG context included (stream): ${relevantContext.length} chunks`);
+      }
+
+      const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+        { role: 'system', content: systemPrompt },
+        ...history.map((msg) => ({
+          role: msg.role as 'user' | 'assistant' | 'system',
+          content: msg.content,
+        })),
+        { role: 'user', content: userMessage },
+      ];
+
+      const stream = await this.openai.chat.completions.create({
+        model: 'gpt-4',
+        messages,
+        temperature: 0.7,
+        max_tokens: 500,
+        stream: true,
+      });
+
+      for await (const chunk of stream) {
+        const delta = chunk.choices[0]?.delta?.content;
+        if (delta) {
+          yield delta;
+        }
+      }
+    } catch (error) {
+      this.logger.error(
+        `Error calling OpenAI streaming API: ${error instanceof Error ? error.message : String(
+          error
+        )}`,
+        error instanceof Error ? error.stack : undefined
+      );
+
+      // In case of error in the middle of the stream, we send a small closing message to not leave the client "hanging".
+      const fallback = this.generatePlaceholderResponse('api-error');
+      yield `\n\n[Aviso]: ${fallback.content}`;
     }
   }
 

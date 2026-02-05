@@ -87,12 +87,77 @@ export const api = {
     return response.data;
   },
 
-  // TODO: Implementar streaming
-  // El candidato debe implementar un método para manejar SSE o WebSocket
-  // streamChatResponse: (conversationId: string, onMessage: (token: string) => void) => {
-  //   // Implementar EventSource para SSE
-  //   // O WebSocket para conexión bidireccional
-  // },
+  // Single POST: body with message, streamed response in the body (NDJSON).
+  // Read the stream line by line and call onChunk / onDone / onError.
+  // Return an AbortController to cancel the request if needed.
+  streamChatResponse: (params: {
+    studentId: string;
+    message: string;
+    conversationId?: string;
+    onChunk: (delta: string) => void;
+    onDone: (payload: { conversationId: string; userMessage: any; assistantMessage: any }) => void;
+    onError?: (error: Error) => void;
+  }): AbortController => {
+    const { studentId, message, conversationId, onChunk, onDone, onError } = params;
+    const baseURL = apiClient.defaults.baseURL ?? '';
+    const url = `${baseURL}/chat/message/stream`;
+    const controller = new AbortController();
+
+    (async () => {
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ studentId, message, conversationId }),
+          signal: controller.signal,
+        });
+
+        if (!res.ok) {
+          const errBody = await res.text();
+          throw new Error(res.status === 400 ? errBody || 'Datos inválidos' : `Error ${res.status}: ${errBody || res.statusText}`);
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No se puede leer el stream');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() ?? '';
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const obj = JSON.parse(trimmed) as { type: string; delta?: string; message?: string; conversationId?: string; userMessage?: any; assistantMessage?: any };
+              if (obj.type === 'chunk' && obj.delta != null) onChunk(obj.delta);
+              else if (obj.type === 'done') onDone({ conversationId: obj.conversationId!, userMessage: obj.userMessage!, assistantMessage: obj.assistantMessage! });
+              else if (obj.type === 'error') throw new Error(obj.message ?? 'Error en el stream');
+            } catch (e) {
+              if (e instanceof SyntaxError) console.error('NDJSON parse error:', trimmed, e);
+              else throw e;
+            }
+          }
+        }
+        if (buffer.trim()) {
+          try {
+            const obj = JSON.parse(buffer.trim()) as { type: string; delta?: string; conversationId?: string; userMessage?: any; assistantMessage?: any };
+            if (obj.type === 'chunk' && obj.delta != null) onChunk(obj.delta);
+            else if (obj.type === 'done') onDone({ conversationId: obj.conversationId!, userMessage: obj.userMessage!, assistantMessage: obj.assistantMessage! });
+          } catch (_) { }
+        }
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return;
+        console.error('Stream error:', err);
+        onError?.(err as Error);
+      }
+    })();
+
+    return controller;
+  },
 };
 
 // Interceptor para manejo de errores (básico)

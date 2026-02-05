@@ -28,6 +28,7 @@ export function Chat({ studentId }: ChatProps) {
     messagesEndRef,
     messagesContainerRef,
     chatInputRef,
+    sendWithStreaming,
   } = useChat({ studentId });
 
   return (
@@ -84,61 +85,61 @@ export function Chat({ studentId }: ChatProps) {
         </ChatHeader>
 
         <MessagesContainer ref={messagesContainerRef}>
-        {messages.length === 0 && (
-          <WelcomeMessage>
-            <WelcomeIcon><Hand size={48} /></WelcomeIcon>
-            <WelcomeTitle>¡Hola! Soy tu asistente de estudios</WelcomeTitle>
-            <WelcomeText>
-              Puedo ayudarte con:
-              <ul>
-                <li>Dudas sobre el contenido de tus cursos</li>
-                <li>Técnicas de estudio y organización</li>
-                <li>Motivación y consejos</li>
-              </ul>
-            </WelcomeText>
-            <SuggestionButtons>
-              <SuggestionButton onClick={() => sendMessage('¿Cómo puedo mejorar mi técnica de estudio?')}>
-                <Lightbulb size={14} /> Técnicas de estudio
-              </SuggestionButton>
-              <SuggestionButton onClick={() => sendMessage('¿Qué curso me recomiendas empezar?')}>
-                <BookOpen size={14} /> Recomendaciones
-              </SuggestionButton>
-            </SuggestionButtons>
-          </WelcomeMessage>
-        )}
+          {messages.length === 0 && (
+            <WelcomeMessage>
+              <WelcomeIcon><Hand size={48} /></WelcomeIcon>
+              <WelcomeTitle>¡Hola! Soy tu asistente de estudios</WelcomeTitle>
+              <WelcomeText>
+                Puedo ayudarte con:
+                <ul>
+                  <li>Dudas sobre el contenido de tus cursos</li>
+                  <li>Técnicas de estudio y organización</li>
+                  <li>Motivación y consejos</li>
+                </ul>
+              </WelcomeText>
+              <SuggestionButtons>
+                <SuggestionButton onClick={() => sendWithStreaming('¿Cómo puedo mejorar mi técnica de estudio?')}>
+                  <Lightbulb size={14} /> Técnicas de estudio
+                </SuggestionButton>
+                <SuggestionButton onClick={() => sendWithStreaming('¿Qué curso me recomiendas empezar?')}>
+                  <BookOpen size={14} /> Recomendaciones
+                </SuggestionButton>
+              </SuggestionButtons>
+            </WelcomeMessage>
+          )}
 
-        {hasOlderMessages && (
-          <LoadMoreWrapper>
-            <LoadMoreButton
-              type="button"
-              onClick={loadOlderMessages}
-              disabled={loadingMore}
-            >
-              {loadingMore ? 'Cargando...' : 'Cargar mensajes anteriores'}
-            </LoadMoreButton>
-          </LoadMoreWrapper>
-        )}
+          {hasOlderMessages && (
+            <LoadMoreWrapper>
+              <LoadMoreButton
+                type="button"
+                onClick={loadOlderMessages}
+                disabled={loadingMore}
+              >
+                {loadingMore ? 'Cargando...' : 'Cargar mensajes anteriores'}
+              </LoadMoreButton>
+            </LoadMoreWrapper>
+          )}
 
-        {messages.map((message) => (
-          <ChatMessage
-            key={message.id}
-            role={message.role}
-            content={message.content}
-            timestamp={message.timestamp}
-            chunkSources={message.metadata?.chunkSources}
-          />
-        ))}
+          {messages.map((message) => (
+            <ChatMessage
+              key={message.id}
+              role={message.role}
+              content={message.content}
+              timestamp={message.timestamp}
+              chunkSources={message.metadata?.chunkSources}
+            />
+          ))}
 
-        {isTyping && (
-          <ChatMessage role="assistant" content="" isLoading />
-        )}
+          {isTyping && (
+            <ChatMessage role="assistant" content="" isLoading />
+          )}
 
-        <div ref={messagesEndRef} />
+          <div ref={messagesEndRef} />
         </MessagesContainer>
 
         <ChatInput
           ref={chatInputRef}
-          onSend={sendMessage}
+          onSend={sendWithStreaming}
           disabled={sendMessagePending}
           placeholder="Escribe tu pregunta..."
         />
